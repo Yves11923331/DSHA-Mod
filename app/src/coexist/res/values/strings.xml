@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 共存版覆盖：与正式包并排安装时用不同应用名区分。 -->
+<!-- 「DSHA-Mod」里的半角横杠在 android:label 里合法：label 是纯文本，不是资源名/包名，
+     不受「只允许下划线和小写字母」那套限制，也不需要改成「·」。 -->
+<resources>
+    <string name="app_name" translatable="false">DSHA-Mod</string>
+</resources>

@@ -1,6 +1,7 @@
 package com.deepseekharness.app.ui;
 
 import android.content.Context;
+import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.fragment.app.Fragment;
@@ -10,62 +11,109 @@ import com.deepseekharness.app.util.NativeConsentPolicy;
 import com.deepseekharness.app.util.UiText;
 import com.google.android.material.materialswitch.MaterialSwitch;
 
-/** Local DSHA ASK confirmation toggle. It never requests or changes a device/system capability. */
+/**
+ * Local DSHA ASK confirmation toggle. It never requests or changes a device/system capability.
+ *
+ * <p>224：整块换成和设置页同一套行 —— 一行一件事（开关行 / 条款行 / 恢复行 /
+ * 重建行 / 诊断行），尺寸与图标由 {@link GrantRow} 统一，不再出现 18sp 标题、
+ * 20dp 内边距和默认样式按钮。
+ */
 final class FullPermissionControls implements AutoCloseable {
   private final Context app;
   private final Runnable policyChanged;
+  private final GrantRow globalRow;
   private final MaterialSwitch global;
   private final TextView status;
-  private final LinearLayout recoveryChoices;
-  private final androidx.appcompat.widget.AppCompatButton rebuild;
-  private final androidx.appcompat.widget.AppCompatButton diagnostics;
+  /** 保存失败 / 需要重选时才出现的两行「重新选择」。 */
+  private final LinearLayout recoveryGroup;
+
+  private final GrantRow recoveryOnRow;
+  private final GrantRow recoveryOffRow;
+  /** 「重新设置本机确认」行（含分隔线）。 */
+  private final LinearLayout rebuildGroup;
+
+  private final GrantRow rebuildRow;
+  private final GrantRow diagnosticsRow;
   private boolean rendering, closed;
 
   FullPermissionControls(Fragment owner, LinearLayout host, Runnable policyChanged) {
     app = owner.requireContext().getApplicationContext();
     this.policyChanged = policyChanged;
     Context ctx = owner.requireContext();
-    LinearLayout card = new LinearLayout(ctx);
-    card.setOrientation(LinearLayout.VERTICAL);
-    card.setPadding(20, 20, 20, 20);
-    card.setBackgroundResource(R.drawable.bg_card);
-    TextView heading = new TextView(ctx);
-    heading.setText(UiText.choose("全局权限", "Global permission"));
-    heading.setTextSize(18);
-    heading.setTextColor(ctx.getColor(R.color.text));
-    card.addView(heading);
-    global = new MaterialSwitch(ctx);
-    global.setText(UiText.choose("不再询问 DSHA 安全确认", "Skip DSHA safety confirmations"));
-    card.addView(global);
-    TextView hint = new TextView(ctx);
-    hint.setText(
+
+    host.addView(GrantRow.section(ctx, UiText.choose("全局确认", "Global confirmation")));
+    LinearLayout card = GrantRow.card(ctx);
+
+    // 1) 总开关行
+    globalRow =
+        GrantRow.row(
+            ctx,
+            R.drawable.ic_ui_shield,
+            UiText.choose("跳过 DSHA 安全确认", "Skip DSHA safety confirmations"),
+            "",
+            true,
+            false);
+    global = globalRow.toggle;
+    status = globalRow.subtitle;
+    card.addView(globalRow.root);
+
+    // 2) 完整条款（原来 150 字说明收进弹窗，行里只留一句）
+    card.addView(GrantRow.divider(ctx));
+    final String fullHint =
         UiText.choose(
             "开启后，已获准能力的操作不再询问 DSHA 安全确认；关闭后恢复各项确认规则。此开关仅保存在本机，不随备份迁移。文件访问、Root、ADB、短信、定位、传感器和 Android 系统权限仍按各自授权设置生效，独立拒绝或暂停仍然有效。需要填写的业务内容、恢复范围和保存位置仍由你选择。",
-            "When enabled, operations using authorized capabilities skip DSHA safety confirmations. Turning it off restores confirmation rules. This choice stays on this device and is excluded from backups. File access, Root, ADB, SMS, location, sensors and Android permissions keep their separate grants; explicit denial or pause remains effective. Business inputs, restore scope and save destinations still require your selection."));
-    hint.setTextSize(12);
-    hint.setTextColor(ctx.getColor(R.color.text_secondary));
-    card.addView(hint);
-    status = new TextView(ctx);
-    status.setTextSize(12);
-    status.setTextColor(ctx.getColor(R.color.text_secondary));
-    card.addView(status);
-    recoveryChoices = new LinearLayout(ctx);
-    for (boolean enabled : new boolean[] {false, true}) {
-      var choice = new androidx.appcompat.widget.AppCompatButton(ctx);
-      choice.setText(
-          enabled
-              ? UiText.choose("重新选择开启并保存", "Choose on and save")
-              : UiText.choose("重新选择关闭并保存", "Choose off and save"));
-      choice.setOnClickListener(
-          view -> {
-            if (!closed) save(enabled);
-          });
-      recoveryChoices.addView(choice, new LinearLayout.LayoutParams(0, -2, 1));
-    }
-    card.addView(recoveryChoices);
-    rebuild = new androidx.appcompat.widget.AppCompatButton(ctx);
-    rebuild.setText(UiText.choose("重新设置本机确认", "Set up local confirmation again"));
-    rebuild.setOnClickListener(
+            "When enabled, operations using authorized capabilities skip DSHA safety confirmations. Turning it off restores confirmation rules. This choice stays on this device and is excluded from backups. File access, Root, ADB, SMS, location, sensors and Android permissions keep their separate grants; explicit denial or pause remains effective. Business inputs, restore scope and save destinations still require your selection.");
+    GrantRow terms =
+        GrantRow.row(
+            ctx,
+            R.drawable.ic_recovery_document,
+            UiText.choose("完整条款", "Full terms"),
+            UiText.choose(
+                "已授权能力不再弹安全确认；独立拒绝与系统权限仍各自生效",
+                "Authorized capabilities skip confirmations; explicit denial and system permissions still apply"));
+    terms.root.setOnClickListener(
+        v -> CardSheet.show(ctx, UiText.choose("全局权限", "Global permission"), fullHint));
+    card.addView(terms.root);
+
+    // 3) 记录损坏 / 需要重选：两行「重新选择」
+    recoveryGroup = new LinearLayout(ctx);
+    recoveryGroup.setOrientation(LinearLayout.VERTICAL);
+    recoveryOnRow =
+        GrantRow.row(
+            ctx,
+            R.drawable.ic_recovery_refresh,
+            UiText.choose("重新选择开启并保存", "Choose on and save"),
+            UiText.choose("保存到本机，旧请求立即失效", "Saved on this device; old requests become invalid"));
+    recoveryOnRow.root.setOnClickListener(
+        view -> {
+          if (!closed) save(true);
+        });
+    recoveryOffRow =
+        GrantRow.row(
+            ctx,
+            R.drawable.ic_recovery_refresh,
+            UiText.choose("重新选择关闭并保存", "Choose off and save"),
+            UiText.choose("保存到本机，旧请求立即失效", "Saved on this device; old requests become invalid"));
+    recoveryOffRow.root.setOnClickListener(
+        view -> {
+          if (!closed) save(false);
+        });
+    recoveryGroup.addView(GrantRow.divider(ctx));
+    recoveryGroup.addView(recoveryOnRow.root);
+    recoveryGroup.addView(GrantRow.divider(ctx));
+    recoveryGroup.addView(recoveryOffRow.root);
+    card.addView(recoveryGroup);
+
+    // 4) 重新设置本机确认（只在记录可重建时出现）
+    rebuildGroup = new LinearLayout(ctx);
+    rebuildGroup.setOrientation(LinearLayout.VERTICAL);
+    rebuildRow =
+        GrantRow.row(
+            ctx,
+            R.drawable.ic_recovery_wrench,
+            UiText.choose("重新设置本机确认", "Set up local confirmation again"),
+            UiText.choose("保留异常记录，把本机确认重建为关闭", "Keep the invalid record and rebuild as off"));
+    rebuildRow.root.setOnClickListener(
         view -> {
           if (closed) return;
           var candidate = new DeviceGrants(app).prepareConsentRecovery();
@@ -92,10 +140,19 @@ final class FullPermissionControls implements AutoCloseable {
                   })
               .show();
         });
-    card.addView(rebuild);
-    diagnostics = new androidx.appcompat.widget.AppCompatButton(ctx);
-    diagnostics.setText(UiText.choose("诊断详情", "Diagnostic details"));
-    diagnostics.setOnClickListener(
+    rebuildGroup.addView(GrantRow.divider(ctx));
+    rebuildGroup.addView(rebuildRow.root);
+    card.addView(rebuildGroup);
+
+    // 5) 诊断详情
+    card.addView(GrantRow.divider(ctx));
+    diagnosticsRow =
+        GrantRow.row(
+            ctx,
+            R.drawable.ic_recovery_database,
+            UiText.choose("诊断详情", "Diagnostic details"),
+            UiText.choose("查看本机确认记录的读取与保存状态", "Read and save state of the local confirmation record"));
+    diagnosticsRow.root.setOnClickListener(
         view -> {
           if (closed) return;
           CardSheet.show(
@@ -103,13 +160,14 @@ final class FullPermissionControls implements AutoCloseable {
               UiText.choose("全局权限诊断", "Global permission diagnostics"),
               diagnosticText(new DeviceGrants(app).consentSnapshot()));
         });
-    card.addView(diagnostics);
+    card.addView(diagnosticsRow.root);
+
     global.setOnCheckedChangeListener(
         (button, enabled) -> {
           if (rendering || closed) return;
           save(enabled);
         });
-    host.addView(card, 2, new LinearLayout.LayoutParams(-1, -2));
+    host.addView(card, new LinearLayout.LayoutParams(-1, -2));
     refresh();
   }
 
@@ -123,23 +181,21 @@ final class FullPermissionControls implements AutoCloseable {
     if (closed) return;
     var snapshot = new DeviceGrants(app).consentSnapshot();
     rendering = true;
-    global.setVisibility(
-        snapshot.hasSwitchValue() ? android.view.View.VISIBLE : android.view.View.GONE);
     try {
-      if (snapshot.hasSwitchValue())
+      boolean hasSwitch = snapshot.hasSwitchValue();
+      globalRow.root.setVisibility(hasSwitch ? View.VISIBLE : View.GONE);
+      if (hasSwitch) {
         global.setChecked(snapshot.readState() == NativeConsentPolicy.ReadState.ON);
+      }
     } finally {
       rendering = false;
     }
-    recoveryChoices.setVisibility(
-        snapshot.readState()
-                    == com.deepseekharness.app.util.NativeConsentPolicy.ReadState.SAVE_FAILED
-                || snapshot.readState()
-                    == com.deepseekharness.app.util.NativeConsentPolicy.ReadState.RECONFIRM_REQUIRED
-            ? android.view.View.VISIBLE
-            : android.view.View.GONE);
-    rebuild.setVisibility(
-        snapshot.canRebuild() ? android.view.View.VISIBLE : android.view.View.GONE);
+    recoveryGroup.setVisibility(
+        snapshot.readState() == NativeConsentPolicy.ReadState.SAVE_FAILED
+                || snapshot.readState() == NativeConsentPolicy.ReadState.RECONFIRM_REQUIRED
+            ? View.VISIBLE
+            : View.GONE);
+    rebuildGroup.setVisibility(snapshot.canRebuild() ? View.VISIBLE : View.GONE);
     String description =
         switch (snapshot.readState()) {
           case ON ->
@@ -173,7 +229,7 @@ final class FullPermissionControls implements AutoCloseable {
                   "本机设置现已可读；旧确认授权仍已失效，请重新选择并保存",
                   "Local settings are readable again; old consent remains invalid. Choose and save again");
         };
-    status.setText(description);
+    if (!description.contentEquals(status.getText())) status.setText(description);
   }
 
   static String diagnosticText(NativeConsentPolicy.Snapshot snapshot) {

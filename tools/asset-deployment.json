@@ -117,6 +117,9 @@
     "web-integration/language.js",
     "web-integration/permission-full-access.js",
     "web-integration/session-interaction.js",
+    "web/scroll-guard.js",
+    "web/scroll-lock.js",
+    "web/scroll-watcher.js",
     "welcome-notice-patch.json",
     "workspace-directory-policy-patch.json"
   ],

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 215 启动页 01「白场」：纯白 → 暖白，从顶到底极浅的渐变。
+     深色主题在 drawable-night 里换成近黑，保证和竖屏其余页面同一套主题。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:endColor="#F7F6F4"
+        android:startColor="#FFFFFF" />
+</shape>

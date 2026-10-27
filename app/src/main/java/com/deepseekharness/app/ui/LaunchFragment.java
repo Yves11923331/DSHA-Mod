@@ -56,6 +56,8 @@ public class LaunchFragment extends Fragment {
 
   /** 通知点击进来、待自动进入 Web 的意图；由既有每秒刷新循环消费，就绪即进。 */
   private boolean pendingAutoEnter;
+  /** 自动进入时走横屏显示，而不是普通 Web 预览。 */
+  private boolean pendingLandscape;
 
   private final Runnable refreshState =
       new Runnable() {
@@ -69,7 +71,9 @@ public class LaunchFragment extends Fragment {
           // 初始值与成功值都非 null（成功时是"鉴权成功"），用它当成功判据会永不进入。
           if (pendingAutoEnter && !webEntryUrl().isEmpty()) {
             pendingAutoEnter = false;
-            enterWeb();
+            boolean landscape = pendingLandscape;
+            pendingLandscape = false;
+            enterWeb(landscape);
           }
           ui.postDelayed(this, 1000);
         }
@@ -83,18 +87,27 @@ public class LaunchFragment extends Fragment {
       @Nullable Bundle savedInstanceState) {
     View v = inflater.inflate(R.layout.fragment_launch, container, false);
 
+    DshAppearance.apply(requireActivity(), "app", v.findViewById(R.id.launch_panel));
     controller = HarnessController.get(requireContext());
     final Activity activity = requireActivity();
     TextView status = v.findViewById(R.id.launch_status);
     Button start = v.findViewById(R.id.launch_start);
     Button restart = v.findViewById(R.id.launch_open);
     Button stop = v.findViewById(R.id.launch_stop);
+    Button orientation = v.findViewById(R.id.launch_orientation);
     lanAddrText = v.findViewById(R.id.lan_addr);
     launchLog = v.findViewById(R.id.launch_log);
     logRevision = -1;
     logUrl = "";
     v.findViewById(R.id.launch_download_logs)
         .setOnClickListener(x -> startActivity(DiagnosticActivity.downloadLogs(requireContext())));
+    TextView appearanceSummary = v.findViewById(R.id.launch_appearance_summary);
+    String appearanceNow = DshAppearance.presetLabel(requireContext());
+    appearanceSummary.setText(
+        "默认".equals(appearanceNow) ? "未设置 · 点这里选图" : appearanceNow);
+    v.findViewById(R.id.launch_appearance)
+        .setOnClickListener(
+            x -> startActivity(new Intent(requireContext(), AppearanceActivity.class)));
 
     v.findViewById(R.id.launch_address)
         .setOnClickListener(
@@ -119,6 +132,8 @@ public class LaunchFragment extends Fragment {
               dialog.show();
             });
     restart.setText(R.string.ui2_restart);
+    updateOrientationButton(orientation);
+    orientation.setOnClickListener(x -> enterLandscape());
     v.findViewById(R.id.launch_recovery).setOnClickListener(x -> showRecovery());
     v.findViewById(R.id.launch_safe)
         .setOnClickListener(
@@ -250,6 +265,10 @@ public class LaunchFragment extends Fragment {
 
   /** 打开 WebPreviewActivity 进入 dsh WebUI。 */
   private void enterWeb() {
+    enterWeb(false);
+  }
+
+  private void enterWeb(boolean landscape) {
     final View root = getView();
     final Activity activity = getActivity();
     if (enteringWeb
@@ -284,7 +303,7 @@ public class LaunchFragment extends Fragment {
       // The browser owns the token -> cookie -> HTTP 200 verification. Doing it here
       // too created two serial exchanges before the first page; no unverified cookie
       // is handed off and neither navigation nor progress reports browser readiness.
-      openWebEntry(activity, url, null);
+      openWebEntry(activity, url, null, landscape);
       refreshLanAddr();
     } catch (RuntimeException error) {
       finishWebEntry(
@@ -304,7 +323,33 @@ public class LaunchFragment extends Fragment {
   }
 
   void openWebEntry(Activity activity, String url, String cookie) {
-    startActivity(WebPreviewActivity.intent(activity, url, cookie));
+    openWebEntry(activity, url, cookie, false);
+  }
+
+  void openWebEntry(Activity activity, String url, String cookie, boolean landscape) {
+    // 横屏从 2026-10-26 起重写成 DockDisplayActivity（照 b-3 Dock 的 PortalActivity），
+    // 不再用 DshDisplayActivity（旧实现挂在 WebPreviewActivity 上打补丁）。
+    startActivity(
+        landscape
+            ? DockDisplayActivity.intent(activity, url)
+            : WebPreviewActivity.intent(activity, url, cookie));
+  }
+
+  /** 启动页「横屏」：Web 就绪就直接进；未就绪先启动，就绪后自动进入。 */
+  private void enterLandscape() {
+    if (!webEntryUrl().isEmpty()) {
+      enterWeb(true);
+      return;
+    }
+    View root = getView();
+    Activity activity = getActivity();
+    if (root == null || activity == null || activity.isFinishing() || activity.isDestroyed())
+      return;
+    pendingAutoEnter = true;
+    pendingLandscape = true;
+    TextView status = root.findViewById(R.id.launch_status);
+    status.setText(com.deepseekharness.app.util.UiText.text("正在启动 Web，就绪后自动进入横屏…"));
+    doStart(activity, status, (Button) root.findViewById(R.id.launch_start));
   }
 
   private void finishWebEntry(View root, String message) {
@@ -335,12 +380,34 @@ public class LaunchFragment extends Fragment {
     invalidateWebEntry();
     ui.removeCallbacks(refreshState);
     ui.post(refreshState);
+    // 横屏状态可能由返回栈恢复或旋转前的实例保持，回到页面时同步按钮文字。
+    View root = getView();
+    if (root != null) {
+      DshAppearance.apply(requireActivity(), "app", root.findViewById(R.id.launch_panel));
+      TextView appearanceSummary = root.findViewById(R.id.launch_appearance_summary);
+      if (appearanceSummary != null) {
+        String appearanceNow = DshAppearance.presetLabel(requireContext());
+        appearanceSummary.setText(
+            "默认".equals(appearanceNow) ? "未设置 · 点这里选图" : appearanceNow);
+      }
+      updateOrientationButton(root.findViewById(R.id.launch_orientation));
+    }
+  }
+
+  /** 横屏按钮固定文案：点击进入横屏 DSH 显示，不再切换宿主旋转。 */
+  private void updateOrientationButton(Button button) {
+    if (button == null) return;
+    String label = com.deepseekharness.app.util.UiText.choose("横屏 DSH", "Landscape DSH");
+    button.setText(label);
+    button.setContentDescription(label);
+    button.setSelected(false);
   }
 
   @Override
   public void onPause() {
     // 页面不可见时撤销自动进入：用户离开了启动页，回来不该被"突袭"打开 Web。
     pendingAutoEnter = false;
+    pendingLandscape = false;
     startRequest.incrementAndGet();
     preparingStart = false;
     if (enteringWeb && getView() != null) {

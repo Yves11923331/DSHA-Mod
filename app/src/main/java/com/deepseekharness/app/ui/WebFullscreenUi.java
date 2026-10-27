@@ -63,14 +63,40 @@ public final class WebFullscreenUi {
   private WebFullscreenUi() {}
 
   public static void install(Activity activity) {
+    install(activity, false);
+  }
+
+  /**
+   * @param immersive true = 横屏 DSH 显示：状态栏/导航栏全隐藏，且不把状态栏或挖孔当 padding
+   *     （16:9 虚拟屏要铺满整块屏，挖孔只做视觉避让；IME 仍只加在底部）。
+   */
+  public static void install(Activity activity, boolean immersive) {
     // 旧 Android 的 FLAG_FULLSCREEN 会阻止 adjustResize，不能依赖输入法出现时再取消全屏。
     activity.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
     WindowCompat.setDecorFitsSystemWindows(activity.getWindow(), false);
     View content = activity.findViewById(android.R.id.content);
     activity.getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
-    new ContentInsets(activity, content);
-    applySystemBars(activity);
+    new ContentInsets(activity, content, immersive);
+    if (immersive) applyImmersiveSystemBars(activity);
+    else applySystemBars(activity);
     ViewCompat.requestApplyInsets(content);
+  }
+
+  /**
+   * 210：让竖屏网页跟随设置里的「竖屏隐藏状态栏」。
+   *
+   * <p>开：状态栏/导航栏都隐藏、正文铺满整屏；关：恢复「状态栏避让 + 导航栏隐藏」。
+   * 横屏虚拟屏（landscapeDisplay）本来就是沉浸式，不看这个开关。
+   */
+  public static void syncStatusBarMode(Activity activity, boolean landscapeDisplay) {
+    if (activity == null || activity.isFinishing()) return;
+    boolean immersive = landscapeDisplay || DshAppearance.fullscreenStatusBar(activity);
+    var ref = IME.get(activity);
+    if (ref != null && ref.get() != null) ref.get().setImmersiveMode(immersive);
+    if (immersive) applyImmersiveSystemBars(activity);
+    else applySystemBars(activity);
+    View content = activity.findViewById(android.R.id.content);
+    if (content != null) ViewCompat.requestApplyInsets(content);
   }
 
   /** 容器统一处理尺寸，子浏览器不能再次扣除同一份安全区和输入法边距。 */
@@ -80,6 +106,8 @@ public final class WebFullscreenUi {
           View.OnAttachStateChangeListener {
     private final Activity activity;
     private final View content;
+    /** 210：可切换 —— 设置里的「竖屏隐藏状态栏」改了，网页不用重开也要跟着变。 */
+    private boolean immersive;
     private final Set<WindowInsetsAnimationCompat> imeAnimations =
         Collections.newSetFromMap(new IdentityHashMap<>());
     private ViewTreeObserver focusObserver;
@@ -96,9 +124,14 @@ public final class WebFullscreenUi {
     private int observedWidth;
 
     ContentInsets(Activity activity, View content) {
+      this(activity, content, false);
+    }
+
+    ContentInsets(Activity activity, View content, boolean immersive) {
       super(DISPATCH_MODE_STOP);
       this.activity = activity;
       this.content = content;
+      this.immersive = immersive;
       IME.put(activity, new WeakReference<>(this));
       // Core 1.9 先调用同一 View 的 API21 动画适配，再派发普通边距监听。
       // 此处消费仍保留兼容动画，并避免 WebView 再扣一次输入法边距。
@@ -106,6 +139,20 @@ public final class WebFullscreenUi {
       ViewCompat.setOnApplyWindowInsetsListener(content, this);
       content.addOnAttachStateChangeListener(this);
       if (ViewCompat.isAttachedToWindow(content)) onViewAttachedToWindow(content);
+    }
+
+    /** 当前是否沉浸式（横屏虚拟屏 / 竖屏隐藏状态栏）。 */
+    boolean immersiveMode() {
+      return immersive;
+    }
+
+    /** 210：跟随「竖屏隐藏状态栏」开关；切换后重算安全区并重新派发一次边距。 */
+    void setImmersiveMode(boolean on) {
+      if (immersive == on) return;
+      immersive = on;
+      if (on) safe = Insets.NONE;
+      render();
+      ViewCompat.requestApplyInsets(content);
     }
 
     private boolean ownsKeyboard() {
@@ -127,7 +174,8 @@ public final class WebFullscreenUi {
     @Override
     public WindowInsetsCompat onApplyWindowInsets(View view, WindowInsetsCompat insets) {
       checkWidth();
-      safe = safeInsets(insets);
+      // 沉浸显示：状态栏/导航栏全隐藏，16:9 区域铺满整块屏，不做系统栏/挖孔 padding。
+      safe = immersive ? Insets.NONE : safeInsets(insets);
       if (!ownsKeyboard()) forgetKeyboard();
       // prepare 与 start 之间的 onApply 已是终态；先保留当前输入法高度，
       // 等 progress 提供实际起始或中间帧，不能提前跳到终点。
@@ -155,7 +203,7 @@ public final class WebFullscreenUi {
     public WindowInsetsCompat onProgress(
         WindowInsetsCompat insets, List<WindowInsetsAnimationCompat> runningAnimations) {
       checkWidth();
-      if (attached) safe = safeInsets(insets);
+      if (attached) safe = immersive ? Insets.NONE : safeInsets(insets);
       if (!ownsKeyboard()) forgetKeyboard();
       else if (runningAnimations.stream().anyMatch(imeAnimations::contains)) {
         keyboard = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
@@ -183,7 +231,10 @@ public final class WebFullscreenUi {
       if (!hasFocus) {
         forgetKeyboard();
         render();
-      } else if (attached) ViewCompat.requestApplyInsets(content);
+      } else {
+        if (immersive) applyImmersiveSystemBars(activity);
+        if (attached) ViewCompat.requestApplyInsets(content);
+      }
     }
 
     @Override
@@ -354,10 +405,53 @@ public final class WebFullscreenUi {
     controller.hide(WindowInsetsCompat.Type.navigationBars());
   }
 
+  /** 横屏 DSH 显示：状态栏和导航栏都隐藏，顶部不出现手机信息栏；下拉只临时显示。 */
+  public static void applyImmersiveSystemBars(Activity activity) {
+    if (PictureInPictureActivity.showing(activity)) return;
+    // Dock 同款：API 30+ 直接用框架 InsetsController 再 hide 一次，
+    // 避免拿到/失去焦点后状态栏自己回来。
+    try {
+      android.view.Window window = activity.getWindow();
+      window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+      window.setStatusBarColor(android.graphics.Color.TRANSPARENT);
+      window.setNavigationBarColor(android.graphics.Color.TRANSPARENT);
+      if (android.os.Build.VERSION.SDK_INT >= 30) {
+        window.setDecorFitsSystemWindows(false);
+        android.view.WindowInsetsController insets = window.getInsetsController();
+        if (insets != null) {
+          insets.hide(
+              android.view.WindowInsets.Type.statusBars()
+                  | android.view.WindowInsets.Type.navigationBars());
+          insets.setSystemBarsBehavior(
+              android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        }
+      }
+    } catch (Throwable ignored) {
+    }
+    WindowInsetsControllerCompat controller =
+        WindowCompat.getInsetsController(activity.getWindow(), activity.getWindow().getDecorView());
+    controller.setAppearanceLightStatusBars(true);
+    controller.setAppearanceLightNavigationBars(true);
+    activity.getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
+    activity.getWindow().setNavigationBarColor(android.graphics.Color.TRANSPARENT);
+    controller.setSystemBarsBehavior(
+        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+    controller.hide(
+        WindowInsetsCompat.Type.statusBars() | WindowInsetsCompat.Type.navigationBars());
+  }
+
   /** 当前实例核验后的主题色只改变绘制背景和图标，不重新加载页面。 */
   public static void applyThemeColor(Activity activity, int color) {
     if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
     if (activity instanceof PictureInPictureActivity host) host.applyBrowserTheme(color);
+    // 210：沉浸模式（横屏虚拟屏 / 竖屏隐藏状态栏）下，网页每次上报 theme-color 都不能
+    // 顺手把状态栏拉回来 —— 只换背景色。
+    var ref = IME.get(activity);
+    if (ref != null && ref.get() != null && ref.get().immersiveMode()) {
+      View content = activity.findViewById(android.R.id.content);
+      if (content != null) content.setBackgroundColor(color);
+      return;
+    }
     applySystemBars(activity);
   }
 }

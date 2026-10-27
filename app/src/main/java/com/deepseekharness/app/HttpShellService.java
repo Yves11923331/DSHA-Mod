@@ -771,7 +771,13 @@ public final class HttpShellService {
         // 关键：result 必须包引号 —— 旧实现输出 {"result":YES} 是非法 JSON，
         // 客户端（adb-shell.py 判 '"YES"' in body / agent 用 json 解析）全部失效：
         // 用户点「允许」也会被当成拒绝。
-        String body = "{\"result\":\"" + jsonEscape(result) + "\"}";
+        // 另：鉴权失败保留 200 + 原 result 哨兵以兼容旧客户端，但额外给机器可读的
+        // code 字段——否则调用方只能把「令牌不属于本实例」误读成「授权不可验证」。
+        // （3090 被另一个 DSHA 实例占用时，本实例的令牌会被对端以这个形状拒绝。）
+        String body =
+            authed
+                ? "{\"result\":\"" + jsonEscape(result) + "\"}"
+                : "{\"result\":\"" + jsonEscape(result) + "\",\"code\":\"UNAUTHORIZED\"}";
         byte[] bodyBytes = body.getBytes("UTF-8");
         String head =
             "HTTP/1.1 200 OK\r\n"

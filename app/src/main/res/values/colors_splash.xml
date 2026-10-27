@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 215 启动页进度线的轨道色（未走完的部分）。 -->
+<resources>
+    <color name="splash_track">#EDEFF3</color>
+</resources>

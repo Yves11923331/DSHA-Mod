@@ -4,6 +4,13 @@
         <item name="android:windowLightStatusBar">true</item>
     </style>
 
+    <!-- 横屏视口用：允许 window 背景透明，配置里选 transparent 时能透出后面 -->
+    <style name="Theme.DeepseekHarness.Translucent" parent="Theme.DeepseekHarness">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+
     <style name="Theme.DSHA.Base" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
         <item name="colorOnPrimary">@color/accent_on</item>

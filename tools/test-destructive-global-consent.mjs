@@ -182,7 +182,7 @@ try {
   }));
   const unavailable = [
     ['HTTP_ERROR HTTP 503', f => { f.fetch = async () => ({ ok: false, status: 503 }); }],
-    ['INVALID_REPLY', f => { const cause = new SyntaxError('controlled reply decode failed'); f.expectedCause = cause; f.fetch = async () => ({ ok: true, json: async () => { throw cause; } }); }],
+    ['REPLY_NOT_JSON', f => { const cause = new SyntaxError('controlled reply decode failed'); f.expectedCause = cause; f.fetch = async () => ({ ok: true, json: async () => { throw cause; } }); }],
     ['INVALID_REPLY', f => { f.fetch = async () => ({ ok: true, json: async () => ({ result: JSON.stringify({ ...f.consent, revision: -1 }) }) }); }],
     ['NOT_AVAILABLE', f => { f.fetch = async () => ({ ok: true, json: async () => ({ result: JSON.stringify({ schema: 1, available: false, globalAllow: false }) }) }); }],
     ['DESCRIPTOR_UNAVAILABLE', f => { f.expectedCause = f.sdkThrows = Error('controlled descriptor unavailable'); }],
@@ -197,6 +197,52 @@ try {
       return true;
     });
     assert.equal(f.effects, 0); assert.equal(f.approvals, 0);
+  }));
+  // Regression for the 3090 multi-instance incident: an old bridge whose port
+  // belongs to another DSHA instance answers 200 + {"result":"[UNAUTHORIZED]"}.
+  // That is a wrong-token / wrong-instance fact, not a broken consent record;
+  // it must never be reported as INVALID_REPLY (which reads as "consent broken").
+  await test('foreign bridge [UNAUTHORIZED] sentinel is AUTH_REJECTED, not INVALID_REPLY', () => using({}, async f => {
+    f.fetch = async () => ({ ok: true, json: async () => ({ result: '[UNAUTHORIZED]' }) });
+    await assert.rejects(f.prepare, error => {
+      assert.equal(error.code, 'DSHA_NATIVE_CONSENT_UNAVAILABLE');
+      assert(error.message.includes('AUTH_REJECTED'));
+      assert(!error.message.includes('INVALID_REPLY'));
+      assert(error.message.includes('不是授权问题'));
+      return true;
+    });
+    assert.equal(f.effects, 0); assert.equal(f.approvals, 0);
+  }));
+  await test('foreign bridge machine-readable UNAUTHORIZED code is AUTH_REJECTED', () => using({}, async f => {
+    f.fetch = async () => ({ ok: true, json: async () => ({ result: '[UNAUTHORIZED]', code: 'UNAUTHORIZED' }) });
+    await assert.rejects(f.prepare, error => error.message.includes('AUTH_REJECTED') && !error.message.includes('INVALID_REPLY'));
+  }));
+  await test('401 from the bridge is AUTH_REJECTED without parsing the body', () => using({}, async f => {
+    f.fetch = async () => ({ ok: false, status: 401 });
+    await assert.rejects(f.prepare, error => error.message.includes('AUTH_REJECTED HTTP 401'));
+  }));
+  // Old bridges (build170) answer unknown /app/native-policy with 200 + "[NO_CMD]".
+  // That means "foreign/old bridge holds 3090", not a malformed consent record.
+  await test('old bridge [NO_CMD] is BRIDGE_UNAVAILABLE, not REPLY_NOT_JSON', () => using({}, async f => {
+    f.fetch = async () => ({ ok: true, json: async () => ({ result: '[NO_CMD]' }) });
+    await assert.rejects(f.prepare, error => {
+      assert.equal(error.code, 'DSHA_NATIVE_CONSENT_UNAVAILABLE');
+      assert(error.message.includes('BRIDGE_UNAVAILABLE'));
+      assert(!error.message.includes('REPLY_NOT_JSON'));
+      assert(!error.message.includes('INVALID_REPLY'));
+      return true;
+    });
+  }));
+  await test('non-JSON consent result is REPLY_NOT_JSON, not INVALID_REPLY', () => using({}, async f => {
+    f.fetch = async () => ({ ok: true, json: async () => ({ result: 'OK' }) });
+    await assert.rejects(f.prepare, error => error.message.includes('REPLY_NOT_JSON') && !error.message.includes('INVALID_REPLY'));
+  }));
+  await test('host bridge status is appended to an auth-rejected guard error when present', () => using({}, async f => {
+    f.fetch = async () => ({ ok: true, json: async () => ({ result: '[UNAUTHORIZED]' }) });
+    await assert.rejects(f.prepare, error => {
+      if (fs.existsSync('/root/.dsh/.bridge_status')) assert(error.message.includes('bridge_status='));
+      return true;
+    });
   }));
   await test('actual bounded native-read timeout preserves its cause and dispatches nothing', () => using({}, async f => {
     await f.prepare(); let cause;
@@ -225,7 +271,7 @@ try {
   const initialUnavailable = [
     ['SDK_UNAVAILABLE', f => { f.expectedCause = f.moduleError = Error('controlled signed SDK missing'); }],
     ['HTTP_ERROR HTTP 503', f => { f.fetch = async () => ({ ok: false, status: 503 }); }],
-    ['INVALID_REPLY', f => { const cause = new SyntaxError('controlled initial reply invalid'); f.expectedCause = cause; f.fetch = async () => ({ ok: true, json: async () => { throw cause; } }); }],
+    ['REPLY_NOT_JSON', f => { const cause = new SyntaxError('controlled initial reply invalid'); f.expectedCause = cause; f.fetch = async () => ({ ok: true, json: async () => { throw cause; } }); }],
     ['NOT_AVAILABLE', f => { f.consent.available = false; }],
   ];
   for (const [reason, arrange] of initialUnavailable) await test('mandatory initial ' + reason + ' rejects without an approval request', () => using({}, async f => {

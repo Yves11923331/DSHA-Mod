@@ -1,5 +1,6 @@
 package com.deepseekharness.app.ui;
 
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.TypedValue;
@@ -99,7 +100,7 @@ public class SettingsFragment extends Fragment {
     } catch (Exception ignored) {
     }
     TextView ver = v.findViewById(R.id.settings_ver);
-    ver.setText(com.deepseekharness.app.util.UiText.format("DSHA v%s · MIT 许可", version));
+    ver.setText(com.deepseekharness.app.util.UiText.format("%s · MIT 许可", version));
     TextView updateSub = v.findViewById(R.id.settings_update_sub);
     updateSub.setText(com.deepseekharness.app.util.UiText.text("稳定版与预览版更新"));
 
@@ -176,7 +177,97 @@ public class SettingsFragment extends Fragment {
                     .replace(R.id.fragment_container, new OverlayFragment())
                     .addToBackStack("settings")
                     .commit());
+    TextView backgroundSummary = v.findViewById(R.id.settings_background_summary);
+    backgroundSummary.setText(DshAppearance.presetLabel(requireContext()));
+    // 外观背景统一进独立页面：预设 / 相册选图 / 遮罩滑杆都在那里，选完当场生效。
+    v.findViewById(R.id.settings_background)
+        .setOnClickListener(
+            x -> startActivity(new Intent(requireContext(), AppearanceActivity.class)));
+
+    // 竖屏隐藏状态栏：壁纸要铺到屏幕顶部，做成设置项（默认关闭，需要时自己开）。
+    final com.google.android.material.materialswitch.MaterialSwitch fullscreenSwitch =
+        v.findViewById(R.id.settings_fullscreen_switch);
+    final TextView fullscreenSummary = v.findViewById(R.id.settings_fullscreen_summary);
+    if (fullscreenSwitch != null) {
+      fullscreenSwitch.setChecked(DshAppearance.fullscreenStatusBar(requireContext()));
+      if (fullscreenSummary != null) {
+        fullscreenSummary.setText(fullscreenSwitch.isChecked() ? "壁纸铺满屏幕顶部" : "保留状态栏");
+      }
+      fullscreenSwitch.setOnCheckedChangeListener(
+          (button, isChecked) -> {
+            DshAppearance.setFullscreenStatusBar(requireContext(), isChecked);
+            if (fullscreenSummary != null) {
+              fullscreenSummary.setText(isChecked ? "壁纸铺满屏幕顶部" : "保留状态栏");
+            }
+            DshAppearance.applyStatusBarVisibility(requireActivity());
+          });
+      v.findViewById(R.id.settings_fullscreen)
+          .setOnClickListener(
+              x -> fullscreenSwitch.setChecked(!fullscreenSwitch.isChecked()));
+    }
+
+    // 屏幕常亮（默认关）：所有页面统一生效，退出 App 自动失效。
+    final com.google.android.material.materialswitch.MaterialSwitch keepScreen =
+        v.findViewById(R.id.settings_keep_screen_switch);
+    final TextView keepScreenSummary = v.findViewById(R.id.settings_keep_screen_summary);
+    if (keepScreen != null) {
+      keepScreen.setChecked(ScreenAwake.enabled(requireContext()));
+      if (keepScreenSummary != null) {
+        keepScreenSummary.setText(
+            keepScreen.isChecked() ? "已开启：App 内不会自动熄屏" : "长时间任务时不让屏幕熄灭");
+      }
+      keepScreen.setOnCheckedChangeListener(
+          (button, isChecked) -> {
+            ScreenAwake.setEnabled(requireContext(), isChecked);
+            if (keepScreenSummary != null) {
+              keepScreenSummary.setText(
+                  isChecked ? "已开启：App 内不会自动熄屏" : "长时间任务时不让屏幕熄灭");
+            }
+            ScreenAwake.apply(requireActivity());
+          });
+      v.findViewById(R.id.settings_keep_screen)
+          .setOnClickListener(x -> keepScreen.setChecked(!keepScreen.isChecked()));
+    }
+
+    // 页面度量（开发者，默认关）：开了以后每进一个页面自动把 View 树落成 JSON，
+    // 给外部（agent / 调试脚本）读真机的实际 dp/字号/颜色，替代"看不到真机只能复刻"。
+    final com.google.android.material.materialswitch.MaterialSwitch probe =
+        v.findViewById(R.id.settings_ui_probe_switch);
+    final TextView probeSummary = v.findViewById(R.id.settings_ui_probe_summary);
+    if (probe != null) {
+      probe.setChecked(UiProbe.enabled(requireContext()));
+      if (probeSummary != null) probeSummary.setText(probeSummaryText(probe.isChecked()));
+      probe.setOnCheckedChangeListener(
+          (button, isChecked) -> {
+            UiProbe.setEnabled(requireContext(), isChecked);
+            if (probeSummary != null) probeSummary.setText(probeSummaryText(isChecked));
+            if (isChecked) {
+              // 立刻抓一份设置页自己，用户能马上在文件管理器里看到结果。
+              UiProbe.captureNow(requireActivity(), "switch-on");
+            }
+          });
+      v.findViewById(R.id.settings_ui_probe)
+          .setOnClickListener(x -> probe.setChecked(!probe.isChecked()));
+    }
+
     return v;
+  }
+
+  @Override
+  public void onResume() {
+    super.onResume();
+    View root = getView();
+    if (root != null) {
+      TextView summary = root.findViewById(R.id.settings_background_summary);
+      if (summary != null) summary.setText(DshAppearance.presetLabel(requireContext()));
+    }
+  }
+
+  /** 页面度量开关的副标题：开/关各说清后果，别让人以为开了会一直占资源。 */
+  private String probeSummaryText(boolean on) {
+    return on
+        ? "已开启：每进一页写一份 JSON 到 Download/DSHA/ui-probe"
+        : "开启后每进一个页面，把控件坐标/字号/颜色存成 JSON";
   }
 
   private void runSelftest() {

@@ -42,3 +42,11 @@ scr_backup.png
 # 本机工具状态与服务器取证，不进入公开仓库
 .zcode/
 website-evidence/
+
+# ── DSHA-Mod 追加 ──
+# 恢复用运行时归档：单个 85~127MB，属本地备份，不进公开仓库
+tools/recovery-runtime/archives/
+# 改版构建的本地日志与产物
+DSHA-Mod-*.tar.gz
+*.patch
+

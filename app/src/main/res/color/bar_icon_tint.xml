@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 215 顶栏三符号：默认次要色；只有「有状态」时才上主色，不叠任何底色。
+     现在只有「后台任务」会用到 selected 态（有任务在跑时图标变主色）。 -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true" android:color="@color/primary" />
+    <item android:color="@color/text_secondary" />
+</selector>

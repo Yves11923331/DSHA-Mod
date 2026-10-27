@@ -146,4 +146,11 @@
     <string name="ui2_storage_files">Storage and files</string>
     <string name="ui2_storage_files_sub">Storage usage, cache cleanup and file sharing</string>
     <string name="ui2_recovery_tools">Environment and data recovery</string>
+
+    <string name="ui2_channel_root">Root Shell</string>
+    <string name="ui2_channel_shizuku">Shizuku</string>
+    <string name="ui2_channel_adb">ADB over Wi-Fi</string>
+    <string name="ui2_a11y_service">Accessibility service</string>
+    <string name="ui2_cap_location_sub">Read the current location for travel tasks</string>
+    <string name="ui2_cap_sensors_sub">Ambient light / accelerometer / gyroscope / step count</string>
 </resources>

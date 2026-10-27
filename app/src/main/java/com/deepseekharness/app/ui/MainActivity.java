@@ -18,6 +18,8 @@ import com.google.android.material.bottomnavigation.BottomNavigationView;
  * 主界面外壳：启动门禁 + 底部导航（启动 / 插件 / 设置 / 终端）+ 顶栏标题 + 关于入口。
  */
 public class MainActivity extends AppCompatActivity {
+  private boolean appTransparentTheme;
+
 
   /** Read the lifecycle tracker; this class keeps no static reference to a page. */
   public static MainActivity active() {
@@ -46,6 +48,30 @@ public class MainActivity extends AppCompatActivity {
    * 否则会残留下来，让用户之后手动点启动页时被意外带进 Web。
    */
   private boolean pendingOpenWeb;
+
+  /** 启动页「横屏模式」开关：横屏并隐藏顶部状态栏，重启后保持。 */
+  private static final String PREF_LANDSCAPE_IMMERSIVE = "launch_landscape_immersive";
+
+  /**
+   * 218：重建时用来判断「这次重建是不是昼夜切换引起的」。
+   *
+   * <p>存的是上次 onSaveInstanceState 时的深浅状态，onCreate 时和当前值比 ——
+   * 不一样就说明是主题切换（旋转、改语言、字体大小都不会改 uiMode.night，天然不会误判）。
+   */
+  private static final String KEY_SAVED_NIGHT = "dsha_ui_night";
+
+  /**
+   * 218 修正：昼夜重建时要补的那次 {@link #showMain}。
+   *
+   * <p>不能在 {@code onCreate} 里就调 —— 那时宿主的 FragmentManager 还在 CREATED，
+   * 提前把 gated 页放开会让 Fragment 的 View 根本建不出来，表现就是
+   * **内容区空白、点一下底栏才刷出来**。改到 {@code onPostResume}（Fragment 已 resume）补。
+   */
+  private Bundle pendingThemeMainState;
+  /** 主题重建的起点，用于在日志里报耗时。 */
+  private long themeRelaunchStartedAt;
+
+  private boolean landscapeImmersive;
 
   private String openedRecovery = "";
   private final androidx.activity.result.ActivityResultLauncher<String> localNetworkPermission =
@@ -85,7 +111,15 @@ public class MainActivity extends AppCompatActivity {
 
   @Override
   protected void onCreate(@Nullable Bundle savedInstanceState) {
+    // 218：给「切昼夜主题到底还要多久」留一个可对比的量（logcat 关键词 MAIN_THEME_RELAUNCH）。
+    final long createStartedAt = android.os.SystemClock.elapsedRealtime();
+    appTransparentTheme = DshAppearance.isTransparent(this, "app");
+    if (appTransparentTheme) setTheme(R.style.Theme_DeepseekHarness_Translucent);
     super.onCreate(savedInstanceState);
+
+    // 横屏显示改由 WebPreviewActivity 的 landscape 模式承担；启动页永远按系统方向。
+    // 旧版本写入的 PREF_LANDSCAPE_IMMERSIVE 不再读取，避免升级后启动页被卡在横屏。
+    landscapeImmersive = false;
 
     BrowserTasks.entry("CREATE", getIntent());
     if (resumeBackground(getIntent())) {
@@ -111,8 +145,22 @@ public class MainActivity extends AppCompatActivity {
       finish();
       return;
     }
-    showEntryCheck();
-    if (savedInstanceState != null) {
+
+    // 218：昼夜切换会让 AppCompat 重建 Activity。重建只是换一套颜色，
+    // 不该把启动门禁整个重跑 ——「正在检查运行环境…」那层遮罩 + 一遍磁盘检查，
+    // 正是之前「点一下主题要卡一下」的主因。判据见 KEY_SAVED_NIGHT。
+    final boolean themeRelaunch =
+        savedInstanceState != null
+            && savedInstanceState.containsKey(KEY_SAVED_NIGHT)
+            && savedInstanceState.getBoolean(KEY_SAVED_NIGHT) != ThemeController.isDark(this);
+
+    showEntryCheck(themeRelaunch);
+    // 215：入口检查照常跑，上面再盖一层 1.18s 的「白场」启动页；它自己按时淡出，
+    // 不参与门禁逻辑，也不新增 Activity。
+    SplashOverlay.showOnce(this);
+    // 218 修正：昼夜重建**不做 gate**。gate 是为了「环境检查完之前别让页面先跑起来」，
+    // 而重建时环境本来就是好的；再 gate 一次反而会让下面 onPostResume 的释放踩空。
+    if (savedInstanceState != null && !themeRelaunch) {
       var hold = getSupportFragmentManager().beginTransaction();
       for (Fragment page : getSupportFragmentManager().getFragments()) {
         if (!page.isAdded()) continue;
@@ -122,7 +170,17 @@ public class MainActivity extends AppCompatActivity {
       if (!gatedPages.isEmpty()) hold.commitNow();
     }
     pendingMainState = savedInstanceState;
-    beginEntryCheck();
+    if (themeRelaunch) {
+      // 跳过这一轮环境门禁是有意的：重建只换一套颜色，环境不会在刚刚那一秒里坏掉；
+      // 真出问题时有兜底 —— 插件/终端入口点击时各自走 needsRecovery，恢复横幅照常渲染。
+      //
+      // 这里也**不**调 beginEntryCheck：它的回调会重新走 checkEntry，跟 onPostResume
+      // 里那次补 showMain 抢时序（严重时会被判成"需要维护"而跳走）。
+      pendingThemeMainState = savedInstanceState;
+      themeRelaunchStartedAt = createStartedAt;
+    } else {
+      beginEntryCheck();
+    }
   }
 
   private void beginEntryCheck() {
@@ -144,10 +202,15 @@ public class MainActivity extends AppCompatActivity {
         });
   }
 
-  private void showEntryCheck() {
+  private void showEntryCheck(boolean skipOverlay) {
     // FragmentManager可能先于后台磁盘检查恢复页面。首次就保留真实容器，
     // 后面只移除覆盖层，避免替换整个布局后恢复视图无法重新附着。
     setContentView(R.layout.activity_main);
+    // 壁纸要铺满整屏：先切 edge-to-edge，再铺底图（顺序反了会先按旧 insets 排版）。
+    // 218：昼夜切换重建时，这里铺的就是新主题那套资源（深浅壁纸由 uiMode 自动选）。
+    DshAppearance.applyEdgeToEdge(this);
+    DshAppearance.apply(this, "app", findViewById(R.id.app_root));
+    if (skipOverlay) return;
     var layout = new android.widget.LinearLayout(this);
     layout.setOrientation(android.widget.LinearLayout.VERTICAL);
     layout.setGravity(android.view.Gravity.CENTER);
@@ -265,10 +328,12 @@ public class MainActivity extends AppCompatActivity {
               }
             },
             false);
-    android.view.ViewGroup quickEntries = findViewById(R.id.btn_about);
+    // 215 起 btn_about 是 AppCompatImageButton（不再是 FrameLayout）：
+    // 这里必须声明成 View。写成 ViewGroup 编译期不会报错（findViewById 是泛型推断），
+    // 但运行期会 ClassCastException，表现就是「启动页刚出来就被弹出」。
+    android.view.View quickEntries = findViewById(R.id.btn_about);
     quickEntries.setVisibility(android.view.View.VISIBLE);
     quickEntries.setContentDescription(com.deepseekharness.app.util.UiText.text("关于 DSHA"));
-    ((android.widget.ImageView) quickEntries.getChildAt(0)).setImageResource(R.drawable.ic_about);
     quickEntries.setOnClickListener(v -> AboutDialog.show(this));
 
     BottomNavigationView nav = findViewById(R.id.bottom_nav);
@@ -412,6 +477,29 @@ public class MainActivity extends AppCompatActivity {
   @Override
   protected void onPostResume() {
     super.onPostResume();
+    // 218：昼夜重建补上那次 showMain。放在这里是因为此时 Fragment 已经 resume、
+    // View 已经建好，不会再出现「内容区空白、点底栏才出来」。
+    if (pendingThemeMainState != null) {
+      Bundle saved = pendingThemeMainState;
+      pendingThemeMainState = null;
+      showMain(saved, new ConfigStore(this), HarnessController.get(this));
+      // 兜底：宿主没能恢复出任何页面时，至少把启动页立起来，别让内容区空着。
+      if (getSupportFragmentManager().findFragmentById(R.id.fragment_container) == null) {
+        BottomNavigationView nav = findViewById(R.id.bottom_nav);
+        if (nav != null) nav.setSelectedItemId(R.id.nav_launch);
+      }
+      if (themeRelaunchStartedAt > 0) {
+        android.util.Log.i(
+            "DSHA",
+            "MAIN_THEME_RELAUNCH "
+                + (android.os.SystemClock.elapsedRealtime() - themeRelaunchStartedAt)
+                + "ms fragments="
+                + getSupportFragmentManager().getFragments().size()
+                + " container="
+                + (getSupportFragmentManager().findFragmentById(R.id.fragment_container) != null));
+        themeRelaunchStartedAt = 0;
+      }
+    }
     if (mainReady && getIntent().getBooleanExtra(FirstRunWebStart.EXTRA, false))
       scheduleFirstRunWeb();
     showStartupUpdate();
@@ -420,7 +508,53 @@ public class MainActivity extends AppCompatActivity {
   @Override
   public void onWindowFocusChanged(boolean hasFocus) {
     super.onWindowFocusChanged(hasFocus);
-    if (hasFocus) showStartupUpdate();
+    if (hasFocus) {
+      showStartupUpdate();
+      // 切后台、系统下拉临时栏或旋转后，系统会重新显示状态栏；回到焦点即补隐藏。
+      if (landscapeImmersive) hideStatusBarOnly();
+    }
+  }
+
+  /** 启动页「横屏模式」当前是否开启。 */
+  public boolean isLandscapeImmersive() {
+    return landscapeImmersive;
+  }
+
+  /** 启动页按钮调用：横屏 + 隐藏顶部状态栏；再点一次恢复竖屏并显示状态栏。 */
+  public void toggleLandscapeImmersive() {
+    landscapeImmersive = !landscapeImmersive;
+    getSharedPreferences(com.deepseekharness.app.util.Constants.PREFS, MODE_PRIVATE)
+        .edit()
+        .putBoolean(PREF_LANDSCAPE_IMMERSIVE, landscapeImmersive)
+        .apply();
+    if (landscapeImmersive) {
+      setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+      hideStatusBarOnly();
+      // 旋转动画结束后系统可能再显示一次状态栏，动画完成后再补一刀。
+      getWindow().getDecorView().postDelayed(this::hideStatusBarOnly, 400);
+    } else {
+      setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+      androidx.core.view.WindowInsetsControllerCompat controller =
+          androidx.core.view.WindowCompat.getInsetsController(
+              getWindow(), getWindow().getDecorView());
+      controller.show(androidx.core.view.WindowInsetsCompat.Type.statusBars());
+    }
+  }
+
+  /**
+   * 只隐藏顶部状态栏，保留底部导航手势。
+   *
+   * <p>用 {@code BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE}：从顶部下滑只临时显示，不会把状态栏
+   * 固定在页面顶部，满足「顶部不出现手机信息栏」又不至于让用户无法下拉通知。
+   */
+  private void hideStatusBarOnly() {
+    if (isFinishing() || isDestroyed()) return;
+    android.view.Window window = getWindow();
+    androidx.core.view.WindowInsetsControllerCompat controller =
+        androidx.core.view.WindowCompat.getInsetsController(window, window.getDecorView());
+    controller.setSystemBarsBehavior(
+        androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+    controller.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars());
   }
 
   @Override
@@ -466,16 +600,16 @@ public class MainActivity extends AppCompatActivity {
   }
 
   private void renderThemeButton() {
-    TextView theme = findViewById(R.id.btn_theme);
+    // 215：主题键与另外两枚统一成 44dp / 24dp 线性图标，不再用 TextView 的 compoundDrawable
+    //（旧写法只画 20dp 图标，跟左右两枚对不齐，且没有「无底」的按压态）。
+    android.widget.ImageButton theme = findViewById(R.id.btn_theme);
     String preference = ThemeController.preference(this);
     boolean system = com.deepseekharness.app.util.UiThemePreference.SYSTEM.equals(preference);
     boolean light = com.deepseekharness.app.util.UiThemePreference.LIGHT.equals(preference);
-    theme.setText("");
-    theme.setCompoundDrawablesWithIntrinsicBounds(
-        system ? R.drawable.ic_ui2_auto : light ? R.drawable.ic_ui2_sun : R.drawable.ic_ui2_moon,
-        0,
-        0,
-        0);
+    theme.setImageResource(
+        system
+            ? R.drawable.ic_bar_theme_auto
+            : light ? R.drawable.ic_bar_theme_sun : R.drawable.ic_bar_theme_moon);
     theme.setContentDescription(
         com.deepseekharness.app.util.UiText.text(
             system
@@ -564,6 +698,9 @@ public class MainActivity extends AppCompatActivity {
     if (title == null) return;
     Fragment shown = getSupportFragmentManager().findFragmentById(R.id.fragment_container);
     boolean nested = getSupportFragmentManager().getBackStackEntryCount() > 0;
+    // 215：三符号里只有「后台任务」有状态 —— 有任务在跑就只把描边上主色。
+    android.view.View tasks = findViewById(R.id.btn_tasks);
+    if (tasks != null) tasks.setSelected(BackgroundTasksActivity.busy(this));
     findViewById(R.id.sub_back)
         .setVisibility(nested ? android.view.View.VISIBLE : android.view.View.GONE);
     findViewById(R.id.app_logo)
@@ -588,11 +725,21 @@ public class MainActivity extends AppCompatActivity {
   @Override
   protected void onResume() {
     super.onResume();
+    DshAppearance.apply(this, "app", findViewById(R.id.app_root));
+    // 竖屏隐藏状态栏（设置开关）；隐藏后 insets 归零，顶部栏顶到屏幕边。
+    DshAppearance.applyStatusBarVisibility(this);
+    boolean transparent = DshAppearance.isTransparent(this, "app");
+    if (transparent != appTransparentTheme && !isFinishing()) {
+      appTransparentTheme = transparent;
+      recreate();
+      return;
+    }
     if (discardedLauncherEntry) return;
     BrowserTasks.entry("RESUME", getIntent());
     // 已核验的同代网页先恢复，避免入口检查完成后遗漏唯一一次 onResume。
     if (BrowserTasks.resumeBackground(this)) return;
-    if (!mainReady && !isFinishing()) {
+    // 218：昼夜重建时 showMain 会在紧接着的 onPostResume 里补，这一趟别抢跑门禁。
+    if (!mainReady && !isFinishing() && pendingThemeMainState == null) {
       beginEntryCheck();
       return;
     }
@@ -836,6 +983,8 @@ public class MainActivity extends AppCompatActivity {
   @Override
   protected void onSaveInstanceState(Bundle state) {
     state.putString("opened_startup_recovery", openedRecovery);
+    // 218：给「下一次 onCreate 是不是昼夜切换」留判据。
+    state.putBoolean(KEY_SAVED_NIGHT, ThemeController.isDark(this));
     super.onSaveInstanceState(state);
   }
 

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 镜像不可达提示条：暖黄底 + 1px 边，零阴影。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/warn_soft" />
+    <corners android:radius="14dp" />
+    <stroke android:width="@dimen/stroke" android:color="@color/warn_line" />
+</shape>

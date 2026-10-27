@@ -7,9 +7,9 @@
     <color name="primary_dark">#1D4EC7</color>
     <color name="accent_on">#FFFFFF</color>
     <color name="surface">#FFFFFF</color>
-    <color name="card">#F6F7F9</color>
+    <color name="card">#FFFFFF</color>
     <color name="raised">#EDF0F5</color>
-    <color name="line">#DFE4ED</color>
+    <color name="line">#E7ECF4</color>
     <color name="text">#152033</color>
     <color name="text_secondary">#5C6A80</color>
     <color name="text_muted">#5B6578</color>
@@ -31,4 +31,16 @@
     <color name="disabled">#E9ECF2</color>
     <!-- 状态色的浅底（用于状态条/标签背景，不刺眼） -->
     <color name="err_bg">#14C45A5A</color>
+
+    <!-- 自定义背景用的半透明面板（参考 b-2 星曜奇门）：
+         底图 → app_scrim 遮罩 → 这些玻璃面板。默认模式（无底图）下它们铺在
+         同样的浅色 surface 上，观感和原来的实心卡片一致；只有选了图片/深色/透明
+         才看得出「透」。alpha 都按「字要读得清」定，不追求极限透明。
+         205：实测 78% 白卡 + 35% 白遮罩叠起来后，图片只剩 14% 亮度差，
+         白底照片在手机上几乎等于「没生效」；统一降到 71%/80%/86%。 -->
+    <!-- 214：无壁纸时的页面浅底（白卡才能看出层次）。 -->
+    <color name="page_bg">#F2F5FA</color>
+    <color name="card_glass">#B5F6F7F9</color>
+    <color name="surface_glass">#CCFFFFFF</color>
+    <color name="appbar_glass">#DBFFFFFF</color>
 </resources>

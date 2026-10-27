@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 214：白卡 + 1px 淡边，零阴影。层次靠「白卡 vs 浅底 vs 边线」，不再用内嵌双线。 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="@color/card" />
     <corners android:radius="@dimen/radius_card" />

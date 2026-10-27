@@ -1,4 +1,29 @@
-# DSHA
+# DSHA-Mod
+
+> ## ⚠️ 这是非官方改版，不是 DSHA 官方仓库
+>
+> 本仓库是 **[DSH-APP/DSHA](https://github.com/DSH-APP/DSHA)** 的非官方**共存改版（Mod）**，
+> 由个人维护，与上游项目及其作者**没有隶属关系**，不代表上游立场。
+>
+> | 项 | 值 |
+> |---|---|
+> | 包名 | `dsh.android.client.coexist` |
+> | 应用名 | `DSHA-Mod` |
+> | 与官方版关系 | 数据完全独立（不同包名、不同签名），**可并排安装、互不覆盖** |
+>
+> - 改了什么、版本规则、免责声明 → **[NOTICE-改版说明.md](NOTICE-改版说明.md)**
+> - **本改版的安装包只从本仓库 [Releases](https://github.com/Yves11923331/DSHA-Mod/releases) 下载**
+> - 想要**官方原版** → 去 [DSH-APP/DSHA](https://github.com/DSH-APP/DSHA)
+> - 上游版权与 MIT 许可已完整保留，见 [LICENSE](LICENSE)
+>
+> 本改版的问题请反馈到**本仓库**，不要提交到上游仓库或官方社区。
+
+---
+
+# 上游官方文档
+
+> 以下正文来自上游 [DSH-APP/DSHA](https://github.com/DSH-APP/DSHA) 的 README，
+> 为保留原始信息未作删改。文中指向官方的下载链接与徽章数据均属**上游**，不是本改版。
 
 <p align="center">
   <b>DeepSeek Harness 安卓启动器</b><br>
@@ -24,13 +49,6 @@
 > 正式版 **[v0.2.1-rc.2 · build190](https://github.com/DSH-APP/DSHA/releases/tag/v0.2.1-rc.2)**：虚拟屏、全局授权、新旧共存及移动 UI 更新。[中文文档索引](docs/documentation-index.md) · [English](docs/en/index.md)。
 
 ## ❤️ 赞助商
-
-<table>
-<tr>
-<td width="180"><a href="https://api-zeno.com"><img src="docs/sponsors/api-zeno.jpg" alt="API Zeno" width="150"></a></td>
-<td>感谢 <a href="https://api-zeno.com">API-Zeno</a> 赞助本项目！API-Zeno 汇集国内外主流 AI 模型，满足学习、创作、编程等需求。平台注重实际使用体验，提供操作指南、问题答疑与技术支持，支持在 DSHA 中接入使用。新用户注册即赠 5 元体验额度，欢迎体验！</td>
-</tr>
-</table>
 
 <table>
 <tr>

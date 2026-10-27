@@ -215,6 +215,15 @@ for d in sorted(glob.glob(os.path.join(sys.argv[1], 'build-tools', '*')), revers
     except OSError:
         continue
     if head[:4] != b'\x7fELF':
+        # 2026-10-27：aidl 位置上也可能是 build.sh 自己生成的 shim（bash 脚本，非 ELF）。
+        # 以前这里直接 continue，结果搬家后 shim 指着旧路径也报「no-aidl」，
+        # 永远走不到重装逻辑。现在把它单独报出来，交给 install_aidl_shim 校验路径。
+        try:
+            if '由 build.sh 生成的 aidl 替身'.encode() in open(b, 'rb').read(4096):
+                print('shim:%s' % d)
+                sys.exit()
+        except OSError:
+            pass
         continue
     found = (d, struct.unpack_from('<H', head, 18)[0])
     break
@@ -262,12 +271,27 @@ install_aidl_shim() {
     line="$(head -2 "$bin" 2>/dev/null || true)"
     if printf '%s' "$line" | grep -q '由 build.sh 生成的 aidl 替身'; then
         [ -f "$bak" ] || { echo "ERROR: 旧 aidl shim 缺少原生备份：$bak" >&2; return 1; }
-        echo "==> aidl shim 已在位：$bin"
+        # 2026-10-27：工程整包搬家后，shim 里还烤着旧工程路径，AGP 编译 AIDL 时会
+        # cp: cannot stat '...旧路径.../tools/aidl-stub/.'。路径对不上就按当前 $stub 重写，
+        # 别让「已在位」把搬家掩盖过去。
+        if grep -qF "$stub" "$bin"; then
+            echo "==> aidl shim 已在位：$bin"
+            return 0
+        fi
+        echo "==> aidl shim 指向旧工程路径，按当前工程重写：$stub"
+        write_aidl_shim "$bin" "$stub"
         return 0
     fi
     [ ! -e "$bak" ] || { echo "ERROR: aidl 已有未知备份，拒绝覆盖：$bak" >&2; return 1; }
     echo "==> 备份原生 aidl（x86_64，本机不可执行）：$bin -> aidl.x86_64.disabled"
     mv -f "$bin" "$bak"
+    write_aidl_shim "$bin" "$stub"
+    echo "==> 已安装 aidl shim：$bin"
+}
+
+# 2026-10-27：shim 本体单独成函数，方便「工程搬家」时原地重写。
+write_aidl_shim() {
+    local bin="$1" stub="$2"
     cat > "$bin" <<SHIM
 #!/usr/bin/env bash
 # 由 build.sh 生成的 aidl 替身：主机架构与 build-tools 不符，原生 aidl 跑不起来。
@@ -289,7 +313,6 @@ mkdir -p "\$OUT"
 cp -r "$stub"/. "\$OUT"/
 SHIM
     chmod +x "$bin"
-    echo "==> 已安装 aidl shim：$bin"
 }
 
 if [ -z "${DSHA_FORCE_AIDL:-}" ]; then
@@ -299,6 +322,10 @@ if [ -z "${DSHA_FORCE_AIDL:-}" ]; then
         mismatch:*)
             install_aidl_shim || { echo "ERROR: aidl shim 安装失败，停止构建" >&2; exit 1; }
             echo "==> build-tools 与主机架构不符（${AIDL_STATE#mismatch:}）：已换 shim，AIDL 产物取自 tools/aidl-stub/"
+            ;;
+        shim:*)
+            # 已经是 shim：校验它指向的工程路径是否还是当前这棵树（搬家后会自动重写）。
+            install_aidl_shim || { echo "ERROR: aidl shim 校正失败，停止构建" >&2; exit 1; }
             ;;
         no-aidl)
             echo "NOTE: SDK 里还没有 aidl，AGP 会先自动装 build-tools；装完若是 x86_64，重跑一次即自动换 shim"

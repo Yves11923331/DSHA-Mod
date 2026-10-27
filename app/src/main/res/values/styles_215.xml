@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 215 启动页图标：88dp 方块 + 20dp 圆角，和 HTML 预览的圆角比例一致。
+         用原始 512px 方图（drawable-nodpi/splash_icon）而不是 @mipmap/ic_launcher：
+         后者在 API 26+ 是自适应图标，88dp 里只画出约 2/3 的前景，视觉上会"变小"。 -->
+    <style name="ShapeAppearance.DSHA.SplashIcon" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">20dp</item>
+    </style>
+</resources>

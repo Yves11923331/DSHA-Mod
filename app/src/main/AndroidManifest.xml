@@ -48,8 +48,8 @@
         android:allowBackup="true"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android:icon="@mipmap/ic_launcher_v137"
-        android:roundIcon="@mipmap/ic_launcher_round_v137"
+        android:icon="@mipmap/ic_launcher_v193"
+        android:roundIcon="@mipmap/ic_launcher_round_v193"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:enableOnBackInvokedCallback="true"
@@ -59,12 +59,20 @@
 
         <activity android:name=".ui.BrowserOriginRestoreActivity" android:exported="false" />
         <activity android:name=".ui.CommunityActivity" android:exported="false" />
+        <!-- 215：社区插件生态（原生列表，不走 WebView）。 -->
+        <activity
+            android:name=".ui.CommunityPluginsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.DeepseekHarness" />
         <activity android:name=".ui.OnboardingPrepareActivity" android:exported="false" />
 
         <activity android:name=".ui.AccessibilitySetupActivity" android:exported="false" />
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|navigation"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -139,6 +147,37 @@
         <activity
             android:name=".ui.WelcomeActivity"
             android:exported="false"
+            android:theme="@style/Theme.DeepseekHarness" />
+
+        <activity
+            android:name=".ui.AppearanceActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.DeepseekHarness" />
+
+        <activity
+            android:name=".ui.ImageCropActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
+            android:theme="@style/Theme.DeepseekHarness" />
+
+        <activity
+            android:name=".ui.DockDisplayActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.DeepseekHarness" />
+
+        <activity
+            android:name=".ui.DshDisplayActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.DeepseekHarness" />
 
         <activity

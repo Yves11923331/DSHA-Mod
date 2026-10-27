@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 横屏胶囊容器：与全局玻璃卡片同一套语言（card_glass 底 + line 描边 + radius_card 圆角）。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/card_glass" />
+            <corners android:radius="@dimen/radius_card" />
+            <stroke android:width="@dimen/stroke" android:color="@color/line" />
+        </shape>
+    </item>
+</layer-list>

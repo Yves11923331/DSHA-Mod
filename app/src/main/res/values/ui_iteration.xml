@@ -146,4 +146,11 @@
     <string name="ui2_storage_files">存储与文件</string>
     <string name="ui2_storage_files_sub">空间占用、缓存清理和文件共享</string>
     <string name="ui2_recovery_tools">环境修复与数据救援</string>
+
+    <string name="ui2_channel_root">Root Shell</string>
+    <string name="ui2_channel_shizuku">Shizuku</string>
+    <string name="ui2_channel_adb">ADB 无线调试</string>
+    <string name="ui2_a11y_service">无障碍服务</string>
+    <string name="ui2_cap_location_sub">读取当前位置，用于出行类任务</string>
+    <string name="ui2_cap_sensors_sub">环境光 / 加速度 / 陀螺仪 / 计步</string>
 </resources>

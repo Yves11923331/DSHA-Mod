@@ -94,6 +94,15 @@ public class ConfigStore {
     prefs.edit().putString("plugin_sort_order", mode.name()).apply();
   }
 
+  /** 221：默认隐藏官方/内置/随包插件，只留用户自己装的。 */
+  public boolean getPluginHideBuiltin() {
+    return prefs.getBoolean("plugin_hide_builtin", true);
+  }
+
+  public void setPluginHideBuiltin(boolean hide) {
+    prefs.edit().putBoolean("plugin_hide_builtin", hide).apply();
+  }
+
   public com.deepseekharness.app.util.PluginDownloadSource getPluginDownloadSource() {
     return com.deepseekharness.app.util.PluginDownloadSource.parse(
         text("plugin_download_source", "auto"));

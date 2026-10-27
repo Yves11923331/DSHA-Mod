@@ -1,14 +1,28 @@
 package com.deepseekharness.app.ui;
 
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.Rect;
 import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
+import android.os.Looper;
+import android.provider.MediaStore;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.PixelCopy;
+import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.RenderProcessGoneDetail;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -19,6 +33,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -27,11 +42,19 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.deepseekharness.app.R;
 import com.deepseekharness.app.util.Constants;
+import com.deepseekharness.app.util.DshStageGeometry;
 import com.deepseekharness.app.util.PreviewPageSession;
 import com.deepseekharness.app.util.WebPreviewPolicy;
+
+import java.io.OutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 /** 标准版预览：系统 WebView、异步鉴权、文件选择与可恢复的加载错误。 */
 public class WebPreviewActivity extends PictureInPictureActivity implements WebFullscreenUi.Host {
@@ -81,6 +104,44 @@ public class WebPreviewActivity extends PictureInPictureActivity implements WebF
   private boolean emptyHostRetirementPending;
   private PreviewPageSession.Identity pendingIdentity;
   private PreviewPageSession.Identity startupIdentity;
+
+  /** 横屏 DSH 显示：16:9 虚拟屏 + 三档模式 + 胶囊，与普通 Web 预览共用同一个 Activity。 */
+  private static final String EXTRA_LANDSCAPE = "landscape-display";
+
+  private boolean landscapeDisplay;
+  private LandscapeConfig landscapeConfig;
+  private String landscapeSystemUa;
+  private int landscapeMode = DshStageGeometry.DEFAULT_MODE;
+  private int landscapeAppliedW = -1;
+  private int landscapeAppliedH = -1;
+  private float landscapeAppliedScale = -1f;
+  private View landscapeChrome;
+  private LinearLayout landscapeModeRow;
+  private View landscapeCapsule;
+  private View landscapeScrollTrack;
+  private View landscapeScrollThumb;
+  private volatile boolean landscapeDocScrollable = true;
+  private int landscapeImeBottom;
+  private String landscapeScrollScript;
+  private boolean landscapeScrollInjected;
+  private final android.os.Handler landscapeUi =
+      new android.os.Handler(android.os.Looper.getMainLooper());
+  private final Runnable landscapeResetViewport =
+      () -> {
+        if (!landscapeDisplay || webView == null || landscapeDocScrollable) return;
+        // Dock 的 lastIme：键盘开着时不要复位，否则一输入就被拉回顶部。
+        int ime = landscapeImeBottom;
+        if (ime == 0) {
+          try {
+            android.view.WindowInsets insets = getWindow().getDecorView().getRootWindowInsets();
+            if (insets != null)
+              ime = insets.getInsets(android.view.WindowInsets.Type.ime()).bottom;
+          } catch (RuntimeException ignored) {
+          }
+        }
+        if (ime > 0) return;
+        webView.scrollTo(0, 0);
+      };
   private final Runnable runtimeChanged =
       () ->
           runOnUiThread(
@@ -300,8 +361,39 @@ public class WebPreviewActivity extends PictureInPictureActivity implements WebF
         .putExtra(BrowserConversationRoute.MODE, "FULL");
   }
 
+  /** 横屏 DSH 显示：同一个预览 Activity，换成 16:9 虚拟屏 + 全沉浸。 */
+  public static Intent landscapeIntent(Context ctx, String url) {
+    return intent(ctx, url, null).putExtra(EXTRA_LANDSCAPE, true);
+  }
+
+  /**
+   * 独立横屏页的标记。WebPreviewActivity 是 singleTask；如果竖屏 Web 已经开着，
+   * 再 startActivity 只会走 onNewIntent，EXTRA_LANDSCAPE 被忽略。所以横屏显示放到
+   * 独立的 DshDisplayActivity（不同 taskAffinity），由这个钩子强制进入横屏分支。
+   */
+  protected boolean landscapeHost() {
+    return false;
+  }
+
   @Override
   protected void onCreate(@Nullable Bundle savedInstanceState) {
+    landscapeDisplay = landscapeHost() || getIntent().getBooleanExtra(EXTRA_LANDSCAPE, false);
+    if (landscapeDisplay && DshAppearance.isTransparent(this, "landscape"))
+      setTheme(R.style.Theme_DeepseekHarness_Translucent);
+    if (!landscapeDisplay && DshAppearance.isTransparent(this, "portrait"))
+      setTheme(R.style.Theme_DeepseekHarness_Translucent);
+    if (landscapeDisplay) {
+      landscapeConfig = LandscapeConfig.load(this);
+      landscapeMode = DshStageGeometry.clampMode(landscapeConfig.defaultMode);
+      setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+      if (Build.VERSION.SDK_INT >= 28) {
+        WindowManager.LayoutParams attrs = getWindow().getAttributes();
+        attrs.layoutInDisplayCutoutMode =
+            WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        getWindow().setAttributes(attrs);
+      }
+      getWindow().setBackgroundDrawableResource(R.drawable.bg_dsh_stage);
+    }
     super.onCreate(savedInstanceState);
     closeOriginRestorePreview = BrowserOriginRestore.registerPreview(this);
     microphone = new BrowserMicrophone(this);
@@ -320,18 +412,26 @@ public class WebPreviewActivity extends PictureInPictureActivity implements WebF
     restoreIdentity = savedPageIdentity(savedInstanceState);
     if (restoreIdentity == null) restoreState = null;
     setContentView(R.layout.activity_web_preview);
-    WebFullscreenUi.install(this);
+    // 210：竖屏网页也跟随「竖屏隐藏状态栏」—— 开关打开时正文铺满到屏幕边。
+    WebFullscreenUi.install(this, barsImmersive());
     container = findViewById(R.id.web_container);
     errorPanel = findViewById(R.id.web_error_panel);
     errorTitle = findViewById(R.id.web_error_title);
     errorDetail = findViewById(R.id.web_error_detail);
     progress = findViewById(R.id.web_progress);
+    if (landscapeDisplay) {
+      setupLandscapeStage();
+      DshAppearance.apply(this, "landscape", null);
+    } else {
+      DshAppearance.apply(this, "portrait", findViewById(R.id.web_container));
+    }
     com.deepseekharness.app.core.HarnessController.get(this)
         .addReadyWebPageListener(runtimeChanged);
     PreviewPageSession.Identity initial = currentWebIdentity();
     if ((!emptyHostRetirementPending || initial == null) && retireEmptyHost(null, initial, false))
       return;
-    if (retained.themeColor != null) WebFullscreenUi.applyThemeColor(this, retained.themeColor);
+    if (!landscapeDisplay && retained.themeColor != null)
+      WebFullscreenUi.applyThemeColor(this, retained.themeColor);
     findViewById(R.id.web_retry)
         .setOnClickListener(
             v -> {
@@ -370,7 +470,7 @@ public class WebPreviewActivity extends PictureInPictureActivity implements WebF
         webView = retained.view;
         ((android.content.MutableContextWrapper) webView.getContext()).setBaseContext(this);
         attachClients(webView);
-        container.addView(webView, new FrameLayout.LayoutParams(-1, -1));
+        hostWebView(webView);
       }
       suspendRuntimePage(false);
       creationController.restoreRunningWebSession(() -> synchronizeWebSession());
@@ -422,7 +522,7 @@ public class WebPreviewActivity extends PictureInPictureActivity implements WebF
       webView = retained.view;
       ((android.content.MutableContextWrapper) webView.getContext()).setBaseContext(this);
       attachClients(webView);
-      container.addView(webView, new FrameLayout.LayoutParams(-1, -1));
+      hostWebView(webView);
       WebFrameRate.apply(this, webView);
       progress.setVisibility(retained.ready ? View.GONE : View.VISIBLE);
       continueInitialNavigation();
@@ -758,6 +858,491 @@ public class WebPreviewActivity extends PictureInPictureActivity implements WebF
     }
   }
 
+  /** 把 WebView 放进容器：普通预览满屏；横屏显示套用 16:9 虚拟屏。 */
+  private void hostWebView(WebView view) {
+    view.setOnScrollChangeListener(
+        (v, scrollX, scrollY, oldScrollX, oldScrollY) -> onLandscapeScrollChanged());
+    if (landscapeDisplay) {
+      container.addView(view, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+      view.post(this::applyLandscapeGeometry);
+      container.post(this::applyLandscapeGeometry);
+    } else {
+      container.addView(view, new FrameLayout.LayoutParams(-1, -1));
+    }
+  }
+
+  /** 横屏显示的原生 UI：三档按钮（左上）+ 胶囊（右侧）。 */
+  private void setupLandscapeStage() {
+    FrameLayout root = findViewById(android.R.id.content);
+    if (root == null) return;
+
+    FrameLayout chrome = new FrameLayout(this);
+    chrome.setClipChildren(false);
+
+    LinearLayout modes = new LinearLayout(this);
+    modes.setOrientation(LinearLayout.VERTICAL);
+    FrameLayout.LayoutParams modesLp =
+        new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+    modesLp.gravity = Gravity.TOP | Gravity.START;
+    modesLp.leftMargin = stageDp(16);
+    modesLp.topMargin = stageDp(14);
+    modes.setLayoutParams(modesLp);
+    landscapeModeRow = modes;
+    for (int i = 0; i < DshStageGeometry.MODE_COUNT; i++) {
+      final int mode = i;
+      TextView chip = new TextView(this);
+      chip.setText(com.deepseekharness.app.util.UiText.choose("模式" + (i + 1), "Mode " + (i + 1)));
+      chip.setTextSize(9);
+      chip.setGravity(Gravity.CENTER);
+      chip.setBackground(landscapeChip(false));
+      chip.setContentDescription(
+          com.deepseekharness.app.util.UiText.choose(
+              "横屏 DSH 模式" + (i + 1), "Landscape DSH mode " + (i + 1)));
+      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(stageDp(34), stageDp(21));
+      lp.bottomMargin = stageDp(3);
+      chip.setLayoutParams(lp);
+      chip.setOnClickListener(v -> selectLandscapeMode(mode));
+      modes.addView(chip);
+    }
+    chrome.addView(modes);
+
+    // 右侧只留三枚：网页后退 / 返回启动页 / 只截视口。样式参考星曜奇门的细边小键。
+    // 左侧留边的滚动示意条（Dock 同款）：轨道 + 滑块，跟着 WebView 滚动走。
+    landscapeScrollTrack = new View(this);
+    landscapeScrollTrack.setBackground(landscapeScrollRound(0x14141821, stageDp(4)));
+    landscapeScrollThumb = new View(this);
+    landscapeScrollThumb.setBackground(landscapeScrollRound(0x33141821, stageDp(4)));
+    chrome.addView(
+        landscapeScrollTrack,
+        new FrameLayout.LayoutParams(stageDp(2), stageDp(120)));
+    chrome.addView(
+        landscapeScrollThumb,
+        new FrameLayout.LayoutParams(stageDp(3), stageDp(40)));
+
+    // Dock 的成熟胶囊：← ⌂ ↻ + 第四枚换成截图，40dp、无分隔线、白底细边。
+    LinearLayout capsule = new LinearLayout(this);
+    capsule.setOrientation(LinearLayout.VERTICAL);
+    capsule.setGravity(Gravity.CENTER_HORIZONTAL);
+    capsule.setBackground(landscapeRound(0xFFFFFFFF, 0xFFE6EBF3, stageDp(28)));
+    capsule.setPadding(stageDp(4), stageDp(4), stageDp(4), stageDp(4));
+    capsule.setElevation(stageDp(5));
+    addCapsuleButton(capsule, "\u2190", "网页后退", this::landscapeBack);
+    addCapsuleButton(capsule, "\u2302", "返回启动页", this::openStartPage);
+    addCapsuleButton(capsule, "\u21bb", "刷新", this::reloadLandscape);
+    addCapsuleButton(capsule, "\u2338", "截图视口", this::captureLandscapeViewport);
+    FrameLayout.LayoutParams capLp =
+        new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+    capLp.gravity = Gravity.CENTER_VERTICAL | Gravity.END;
+    capLp.rightMargin = stageDp(18);
+    capsule.setLayoutParams(capLp);
+    landscapeCapsule = capsule;
+    chrome.addView(capsule);
+
+    root.addView(chrome, new FrameLayout.LayoutParams(-1, -1));
+    landscapeChrome = chrome;
+    ViewCompat.setOnApplyWindowInsetsListener(
+        getWindow().getDecorView(),
+        (v, insets) -> {
+          int ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
+          boolean closing = landscapeImeBottom > 0 && ime == 0;
+          landscapeImeBottom = ime;
+          if (closing) {
+            landscapeUi.removeCallbacks(landscapeResetViewport);
+            landscapeUi.postDelayed(landscapeResetViewport, 150);
+          }
+          return insets;
+        });
+    container.addOnLayoutChangeListener(
+        (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->
+            applyLandscapeGeometry());
+    selectLandscapeMode(landscapeMode);
+    applyLandscapeChrome();
+  }
+
+  private void selectLandscapeMode(int mode) {
+    landscapeMode = DshStageGeometry.clampMode(mode);
+    if (landscapeModeRow != null) {
+      for (int i = 0; i < landscapeModeRow.getChildCount(); i++) {
+        View chip = landscapeModeRow.getChildAt(i);
+        boolean on = i == landscapeMode;
+        chip.setSelected(on);
+        chip.setBackground(landscapeChip(on));
+        if (chip instanceof TextView text) text.setTextColor(on ? 0xFFFFFFFF : 0xFF1A1D24);
+      }
+    }
+    applyLandscapeGeometry();
+  }
+
+  /** 虚拟屏几何：WebView 布局尺寸 = CSS × density，再按 min 缩放居中。 */
+  private void applyLandscapeGeometry() {
+    if (!landscapeDisplay || webView == null || container == null) return;
+    int areaW = container.getWidth();
+    int areaH = container.getHeight();
+    if (areaW <= 0 || areaH <= 0) return;
+    float density = getResources().getDisplayMetrics().density;
+    int width = DshStageGeometry.layoutWidth(landscapeMode, density);
+    int height = DshStageGeometry.layoutHeight(landscapeMode, density);
+    float scale = DshStageGeometry.scale(landscapeMode, density, areaW, areaH);
+    if (width <= 0 || height <= 0 || scale <= 0f) return;
+    // setLayoutParams 会再触发一次 onLayoutChange；值没变就跳过，避免自激循环。
+    boolean changed =
+        width != landscapeAppliedW
+            || height != landscapeAppliedH
+            || Math.abs(scale - landscapeAppliedScale) > 0.0001f;
+    if (changed) {
+      landscapeAppliedW = width;
+      landscapeAppliedH = height;
+      landscapeAppliedScale = scale;
+      webView.setLayoutParams(new FrameLayout.LayoutParams(width, height, Gravity.CENTER));
+      webView.setPivotX(width / 2f);
+      webView.setPivotY(height / 2f);
+      webView.setScaleX(scale);
+      webView.setScaleY(scale);
+    }
+    applyLandscapeCutout();
+    applyLandscapeScrollbar();
+  }
+
+  /** 横屏挖孔在右短边时，胶囊整体下移，避免盖住摄像头。 */
+  /** 按 /sdcard 配置摆胶囊、决定控件显隐；改完点胶囊「↻」即重读。 */
+  private void applyLandscapeChrome() {
+    if (!landscapeDisplay || landscapeConfig == null) return;
+    if (landscapeModeRow != null)
+      landscapeModeRow.setVisibility(landscapeConfig.chrome ? View.VISIBLE : View.GONE);
+    if (landscapeCapsule != null) {
+      boolean hidden =
+          !landscapeConfig.chrome
+              || LandscapeConfig.CAPSULE_HIDE.equals(landscapeConfig.capsule);
+      landscapeCapsule.setVisibility(hidden ? View.GONE : View.VISIBLE);
+      if (!hidden) {
+        boolean left = LandscapeConfig.CAPSULE_LEFT.equals(landscapeConfig.capsule);
+        FrameLayout.LayoutParams lp =
+            (FrameLayout.LayoutParams) landscapeCapsule.getLayoutParams();
+        lp.gravity = Gravity.CENTER_VERTICAL | (left ? Gravity.START : Gravity.END);
+        lp.leftMargin = left ? stageDp(16) : 0;
+        lp.rightMargin = left ? 0 : stageDp(18);
+        landscapeCapsule.setLayoutParams(lp);
+      }
+    }
+    applyLandscapeCutout();
+  }
+
+  /** 重新读 /sdcard 配置并刷新页面；不重建 Activity。 */
+  private void reloadLandscape() {
+    landscapeConfig = LandscapeConfig.load(this);
+    landscapeMode = DshStageGeometry.clampMode(landscapeConfig.defaultMode);
+    if (webView != null) {
+      WebSettings settings = webView.getSettings();
+      String system =
+          landscapeSystemUa == null ? settings.getUserAgentString() : landscapeSystemUa;
+      settings.setUserAgentString(
+          landscapeConfig.desktopUa ? WebPreviewPolicy.desktopUserAgent(system) : system);
+      webView.reload();
+    }
+    selectLandscapeMode(landscapeMode);
+    applyLandscapeChrome();
+  }
+
+  /** 页面级口子：注入 /sdcard/Download/DSHA/dsh-a-landscape.css 与 .js。 */
+  private void applyLandscapePageOverrides(WebView view) {
+    if (landscapeConfig == null) return;
+    String css = landscapeConfig.css();
+    if (!css.isEmpty()) {
+      view.evaluateJavascript(
+          "(function(){try{var id='dsha-landscape-style';"
+              + "var old=document.getElementById(id);if(old)old.remove();"
+              + "var s=document.createElement('style');s.id=id;s.textContent="
+              + org.json.JSONObject.quote(css)
+              + ";document.head.appendChild(s);}catch(e){}})()",
+          null);
+    }
+    String js = landscapeConfig.js();
+    if (!js.isEmpty()) {
+      try {
+        view.evaluateJavascript(js, null);
+      } catch (RuntimeException ignored) {
+        // 页面注入失败不影响页面本身；配置写坏了顶多样式不生效。
+      }
+    }
+  }
+
+  private void applyLandscapeCutout() {
+    if (landscapeCapsule == null || landscapeConfig == null) return;
+    if (landscapeCapsule.getVisibility() != View.VISIBLE
+        || !LandscapeConfig.CAPSULE_RIGHT.equals(landscapeConfig.capsule)) {
+      landscapeCapsule.setTranslationY(0);
+      return;
+    }
+    int right = 0;
+    try {
+      android.view.WindowInsets insets = getWindow().getDecorView().getRootWindowInsets();
+      if (insets != null && Build.VERSION.SDK_INT >= 30)
+        right = insets.getInsets(android.view.WindowInsets.Type.displayCutout()).right;
+    } catch (RuntimeException ignored) {
+    }
+    // 胶囊回到右侧中部后会正对短边挖孔；有右侧挖孔时下移让开。
+    landscapeCapsule.setTranslationY(right > 0 ? stageDp(64) : 0);
+  }
+
+  private int stageDp(int value) {
+    return Math.round(value * getResources().getDisplayMetrics().density);
+  }
+
+  private GradientDrawable landscapeChip(boolean on) {
+    return landscapeRound(on ? 0xFF1A1D24 : 0xF2FFFFFF, on ? 0xFF1A1D24 : 0xFFD9E0EC, stageDp(9));
+  }
+
+  private GradientDrawable landscapeRound(int fill, int stroke, int radiusPx) {
+    GradientDrawable background = new GradientDrawable();
+    background.setColor(fill);
+    background.setCornerRadius(radiusPx);
+    background.setStroke(stageDp(1), stroke);
+    return background;
+  }
+
+  private void addCapsuleButton(
+      LinearLayout parent, String label, String description, Runnable action) {
+    TextView button = new TextView(this);
+    button.setText(label);
+    button.setTextSize(18);
+    button.setTextColor(0xFF1A1D24);
+    button.setGravity(Gravity.CENTER);
+    LinearLayout.LayoutParams lp =
+        new LinearLayout.LayoutParams(stageDp(40), stageDp(40));
+    if (parent.getChildCount() > 0) lp.topMargin = stageDp(2);
+    button.setLayoutParams(lp);
+    button.setContentDescription(description);
+    try {
+      android.util.TypedValue tv = new android.util.TypedValue();
+      getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, tv, true);
+      button.setBackgroundResource(tv.resourceId);
+    } catch (RuntimeException ignored) {
+    }
+    button.setOnClickListener(v -> action.run());
+    parent.addView(button);
+  }
+
+  private void addCapsuleDivider(LinearLayout parent) {
+    View divider = new View(this);
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(stageDp(12), stageDp(1));
+    lp.gravity = Gravity.CENTER_HORIZONTAL;
+    divider.setLayoutParams(lp);
+    divider.setBackgroundColor(0x55C9D2DF);
+    parent.addView(divider);
+  }
+
+  /** 「相对意义的返回」：优先网页内后退；DSH 是 SPA，canGoBack=false 时再走 history.back()。 */
+  protected void landscapeBack() {
+    if (webView == null) return;
+    if (webView.canGoBack()) {
+      webView.goBack();
+      return;
+    }
+    try {
+      webView.evaluateJavascript(
+          "(function(){try{if(history.length>1){history.back();return 'BACK';}}catch(e){}return 'ROOT';})()",
+          result -> {
+            if (result != null && result.contains("ROOT"))
+              Toast.makeText(this, "已在页面首页", Toast.LENGTH_SHORT).show();
+          });
+    } catch (RuntimeException error) {
+      Toast.makeText(this, "页面后退失败", Toast.LENGTH_SHORT).show();
+    }
+  }
+
+  /** 回 App 启动页：同一任务里 finish 就回 MainActivity；万一它是任务根，显式开启动页。 */
+  protected void openStartPage() {
+    if (isTaskRoot()) {
+      try {
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        startActivity(intent);
+      } catch (RuntimeException ignored) {
+      }
+    }
+    finish();
+  }
+
+  /** 只截 16:9 视口：PixelCopy 截 WebView 可视矩形，不含左右留边和按钮。 */
+  private void captureLandscapeViewport() {
+    if (webView == null) return;
+    if (Build.VERSION.SDK_INT < 26) {
+      Toast.makeText(this, "当前系统不支持截图", Toast.LENGTH_SHORT).show();
+      return;
+    }
+    int[] location = new int[2];
+    webView.getLocationInWindow(location);
+    int width = Math.round(webView.getWidth() * webView.getScaleX());
+    int height = Math.round(webView.getHeight() * webView.getScaleY());
+    if (width <= 0 || height <= 0) return;
+    Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+    Rect rect = new Rect(location[0], location[1], location[0] + width, location[1] + height);
+    try {
+      PixelCopy.request(
+          getWindow(),
+          rect,
+          bitmap,
+          result -> {
+            if (result == PixelCopy.SUCCESS) {
+              saveLandscapeScreenshot(bitmap);
+            } else {
+              bitmap.recycle();
+              Toast.makeText(this, "截图失败（" + result + "）", Toast.LENGTH_SHORT).show();
+            }
+          },
+          new android.os.Handler(Looper.getMainLooper()));
+    } catch (RuntimeException error) {
+      bitmap.recycle();
+      Toast.makeText(this, "截图失败：" + error.getClass().getSimpleName(), Toast.LENGTH_SHORT)
+          .show();
+    }
+  }
+
+  /** 存到手机相册 Pictures/DSHA-Mod；API 29+ 走 MediaStore，不需要存储权限。 */
+  private void saveLandscapeScreenshot(Bitmap bitmap) {
+    String name =
+        "DSHA_"
+            + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date())
+            + ".png";
+    ContentValues values = new ContentValues();
+    values.put(MediaStore.Images.Media.DISPLAY_NAME, name);
+    values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+    values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/DSHA-Mod");
+    values.put(MediaStore.Images.Media.IS_PENDING, 1);
+    Uri uri = null;
+    try {
+      uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+      if (uri == null) throw new IllegalStateException("MEDIASTORE_NULL");
+      try (OutputStream output = getContentResolver().openOutputStream(uri)) {
+        if (output == null) throw new IllegalStateException("MEDIASTORE_STREAM");
+        if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, output))
+          throw new IllegalStateException("PNG_ENCODE");
+        output.flush();
+      }
+      values.clear();
+      values.put(MediaStore.Images.Media.IS_PENDING, 0);
+      getContentResolver().update(uri, values, null, null);
+      Toast.makeText(this, "已保存到相册 · Pictures/DSHA-Mod", Toast.LENGTH_LONG).show();
+    } catch (Exception error) {
+      if (uri != null) getContentResolver().delete(uri, null, null);
+      Toast.makeText(this, "保存失败：" + error.getClass().getSimpleName(), Toast.LENGTH_LONG)
+          .show();
+    } finally {
+      bitmap.recycle();
+    }
+  }
+
+  private GradientDrawable landscapeScrollRound(int color, int radius) {
+    GradientDrawable drawable = new GradientDrawable();
+    drawable.setColor(color);
+    drawable.setCornerRadius(radius);
+    return drawable;
+  }
+
+  private void onLandscapeScrollChanged() {
+    applyLandscapeScrollbar();
+    if (landscapeDisplay
+        && !landscapeDocScrollable
+        && landscapeImeBottom == 0
+        && webView != null
+        && webView.getScrollY() != 0) {
+      landscapeUi.removeCallbacks(landscapeResetViewport);
+      landscapeUi.postDelayed(landscapeResetViewport, 300);
+    }
+  }
+
+  /** 左侧留边里的滚动示意条：轨道贴 16:9 视口左边，滑块按 scrollRange/Extent 算。 */
+  private void applyLandscapeScrollbar() {
+    if (!landscapeDisplay
+        || webView == null
+        || container == null
+        || landscapeScrollTrack == null
+        || landscapeScrollThumb == null) return;
+    int areaW = container.getWidth();
+    int areaH = container.getHeight();
+    if (areaW <= 0 || areaH <= 0) return;
+    float density = getResources().getDisplayMetrics().density;
+    int layoutW = DshStageGeometry.layoutWidth(landscapeMode, density);
+    int layoutH = DshStageGeometry.layoutHeight(landscapeMode, density);
+    float scale = DshStageGeometry.scale(landscapeMode, density, areaW, areaH);
+    int visualW = Math.round(layoutW * scale);
+    int visualH = Math.round(layoutH * scale);
+    // container 是全屏容器，WebView 在其中居中；轨道要落在 16:9 视口左侧的留边里。
+    int left = (areaW - visualW) / 2;
+    int top = (areaH - visualH) / 2;
+    int pad = stageDp(14);
+    int trackLeft = Math.max(stageDp(4), left - stageDp(12));
+    int trackTop = top + pad;
+    int trackH = Math.max(stageDp(24), visualH - pad * 2);
+
+    FrameLayout.LayoutParams trackLp =
+        (FrameLayout.LayoutParams) landscapeScrollTrack.getLayoutParams();
+    trackLp.leftMargin = trackLeft;
+    trackLp.topMargin = trackTop;
+    trackLp.height = trackH;
+    landscapeScrollTrack.setLayoutParams(trackLp);
+
+    // WebView 的 computeVerticalScroll* 是 protected，这里用 getContentHeight/getScrollY
+    // 换算：内容高度是 CSS px，乘 density 得到布局 px；比例与视觉尺寸无关。
+    int range = Math.round(webView.getContentHeight() * density);
+    int extent = webView.getHeight();
+    boolean scrollable = range > extent && extent > 0;
+    landscapeScrollThumb.setVisibility(scrollable ? View.VISIBLE : View.GONE);
+    if (!scrollable) return;
+    int thumbH = Math.max(stageDp(18), Math.round((float) trackH * extent / range));
+    thumbH = Math.min(thumbH, trackH);
+    int offset = Math.max(0, Math.min(range - extent, webView.getScrollY()));
+    int thumbTop = trackTop + Math.round((float) (trackH - thumbH) * offset / (range - extent));
+    FrameLayout.LayoutParams thumbLp =
+        (FrameLayout.LayoutParams) landscapeScrollThumb.getLayoutParams();
+    thumbLp.leftMargin = trackLeft;
+    thumbLp.topMargin = thumbTop;
+    thumbLp.height = thumbH;
+    landscapeScrollThumb.setLayoutParams(thumbLp);
+  }
+
+  private void showLandscapeMenu() {
+    new DshaDialogBuilder(this)
+        .setTitle(com.deepseekharness.app.util.UiText.text("DSH 显示"))
+        .setItems(
+            new CharSequence[] {
+              com.deepseekharness.app.util.UiText.text("刷新"),
+              com.deepseekharness.app.util.UiText.text("退出横屏")
+            },
+            (dialog, which) -> {
+              if (which == 0) {
+                reloadLandscape();
+              } else {
+                finish();
+              }
+            })
+        .show();
+  }
+
+  private String landscapeScrollLock() {
+    if (landscapeScrollScript != null) return landscapeScrollScript;
+    try (java.io.InputStream input = getAssets().open("web/scroll-lock.js")) {
+      java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+      byte[] buffer = new byte[8192];
+      int count;
+      while ((count = input.read(buffer)) > 0) output.write(buffer, 0, count);
+      landscapeScrollScript = output.toString("UTF-8");
+    } catch (java.io.IOException error) {
+      Log.w("DSHA", "横屏手势锁脚本读取失败: " + error.getClass().getSimpleName());
+      landscapeScrollScript = "";
+    }
+    return landscapeScrollScript;
+  }
+
+  /** JS 只上报「文档能不能滚」，原生在停手后把 visual viewport 的平移量归零。 */
+  private final class LandscapeScrollBridge {
+    @JavascriptInterface
+    public void doc(boolean canScroll) {
+      landscapeDocScrollable = canScroll;
+    }
+  }
+
   private void createWebView(boolean allowAuthRetry, PreviewPageSession.Identity identity) {
     destroyWebView();
     pageFailed = false;
@@ -767,6 +1352,18 @@ public class WebPreviewActivity extends PictureInPictureActivity implements WebF
     try {
       WebView view = new WebView(new android.content.MutableContextWrapper(this));
       webView = view;
+      if (landscapeDisplay && (landscapeConfig == null || landscapeConfig.scrollLock)) {
+        view.addJavascriptInterface(new LandscapeScrollBridge(), "WhaleScroll");
+        view.setOnTouchListener(
+            (v, event) -> {
+              int action = event.getActionMasked();
+              if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                landscapeUi.removeCallbacks(landscapeResetViewport);
+                landscapeUi.postDelayed(landscapeResetViewport, 300);
+              }
+              return false;
+            });
+      }
       retained.view = view;
       retained.authUrl = authUrl;
       retained.pageSession.claim(identity);
@@ -795,13 +1392,18 @@ public class WebPreviewActivity extends PictureInPictureActivity implements WebF
       settings.setSupportMultipleWindows(false);
       settings.setLoadWithOverviewMode(true);
       settings.setUseWideViewPort(true);
-      if (getSharedPreferences(Constants.PREFS, MODE_PRIVATE)
-          .getBoolean(Constants.KEY_DESKTOP_MODE, false)) {
+      landscapeSystemUa = settings.getUserAgentString();
+      boolean desktopUserAgent =
+          landscapeDisplay
+              ? (landscapeConfig == null || landscapeConfig.desktopUa)
+              : getSharedPreferences(Constants.PREFS, MODE_PRIVATE)
+                  .getBoolean(Constants.KEY_DESKTOP_MODE, false);
+      if (desktopUserAgent) {
         settings.setUserAgentString(
             WebPreviewPolicy.desktopUserAgent(settings.getUserAgentString()));
       }
       attachClients(view);
-      container.addView(view, new FrameLayout.LayoutParams(-1, -1));
+      hostWebView(view);
       WebFrameRate.apply(this, view);
       CookieManager cookies = CookieManager.getInstance();
       cookies.setAcceptCookie(true);
@@ -982,6 +1584,8 @@ public class WebPreviewActivity extends PictureInPictureActivity implements WebF
     public void onPageStarted(WebView view, String url, Bitmap favicon) {
       if (!isCurrentPage(view)) return;
       WebFullscreenUi.cancelIme(WebPreviewActivity.this);
+      landscapeScrollInjected = false;
+      landscapeDocScrollable = true;
       retained.pageNavigation++;
       retained.themeGate =
           new com.deepseekharness.app.util.BrowserThemeGate(view, retained.pageSession.identity());
@@ -1007,6 +1611,14 @@ public class WebPreviewActivity extends PictureInPictureActivity implements WebF
       final long navigation = retained.pageNavigation;
       progress.setVisibility(View.GONE);
       if (!WebPreviewPolicy.sameService(baseUrl, url)) return;
+      if (landscapeDisplay) {
+        landscapeDocScrollable = true;
+        if (landscapeConfig == null || landscapeConfig.scrollLock) {
+          landscapeScrollInjected = true;
+          view.evaluateJavascript(landscapeScrollLock(), null);
+        }
+        applyLandscapePageOverrides(view);
+      }
       retained.ready = true;
       final var theme = retained.themeGate;
       if (theme != null)
@@ -1201,6 +1813,17 @@ public class WebPreviewActivity extends PictureInPictureActivity implements WebF
     @Override
     public void onProgressChanged(WebView view, int value) {
       if (isCurrentPage(view) && !pageFailed) progress.setProgress(value);
+      // Dock 同款：进度 8% 时 DOM 已有 head/body，先把手势锁装上，
+      // 别等 onPageFinished —— 加载尾巴那几秒用户最容易把整页拖走。
+      if (landscapeDisplay
+          && value >= 8
+          && !landscapeScrollInjected
+          && isCurrentPage(view)
+          && !pageFailed
+          && (landscapeConfig == null || landscapeConfig.scrollLock)) {
+        landscapeScrollInjected = true;
+        view.evaluateJavascript(landscapeScrollLock(), null);
+      }
     }
 
     @Override
@@ -1327,9 +1950,21 @@ public class WebPreviewActivity extends PictureInPictureActivity implements WebF
     pending.complete(null);
   }
 
+  /**
+   * 210：竖屏 DSH 网页是否也进沉浸式（跟随设置里的「竖屏隐藏状态栏」）。
+   *
+   * <p>横屏虚拟屏本来就是沉浸式；竖屏网页按开关走 —— 开：状态栏/导航栏都隐藏、
+   * 正文铺满整屏；关：恢复原来的「状态栏避让 + 导航栏隐藏」。
+   */
+  private boolean barsImmersive() {
+    return landscapeDisplay || DshAppearance.fullscreenStatusBar(this);
+  }
+
   private void destroyWebView() {
     WebFullscreenUi.cancelIme(this);
-    WebFullscreenUi.applyThemeColor(this, getColor(R.color.surface));
+    landscapeUi.removeCallbacks(landscapeResetViewport);
+    WebFullscreenUi.syncStatusBarMode(this, landscapeDisplay);
+    if (!barsImmersive()) WebFullscreenUi.applyThemeColor(this, getColor(R.color.surface));
     if (microphoneRequests != null) {
       microphoneRequests.cancel();
       microphoneRequests = null;
@@ -1376,7 +2011,7 @@ public class WebPreviewActivity extends PictureInPictureActivity implements WebF
   public void onWindowFocusChanged(boolean hasFocus) {
     super.onWindowFocusChanged(hasFocus);
     if (hasFocus) {
-      WebFullscreenUi.applySystemBars(this);
+      WebFullscreenUi.syncStatusBarMode(this, landscapeDisplay);
       if (webView != null) WebFrameRate.apply(this, webView);
     }
   }
@@ -1421,6 +2056,8 @@ public class WebPreviewActivity extends PictureInPictureActivity implements WebF
   protected void onResume() {
     super.onResume();
     browserResumed = true;
+    // 210：从设置页改完「竖屏隐藏状态栏」回来，网页这边也要立刻跟上。
+    WebFullscreenUi.syncStatusBarMode(this, landscapeDisplay);
     if (synchronizeWebSession()) return;
     continueInitialNavigation();
     if (!pictureInPictureActiveOrTransitioning() && webView != null)

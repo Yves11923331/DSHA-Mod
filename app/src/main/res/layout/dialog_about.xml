@@ -25,6 +25,15 @@
                 </LinearLayout>
                 <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_recovery_right" android:importantForAccessibility="no" app:tint="@color/text_muted" />
             </LinearLayout>
+            <!-- 217：改版说明与声明。藏在「关于」里，不占任何主界面位置。 -->
+            <LinearLayout android:id="@+id/about_mod_notice" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="72dp" android:layout_marginTop="10dp" android:padding="12dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="@drawable/bg_polished_action" android:clickable="true" android:focusable="true">
+                <ImageView android:layout_width="36dp" android:layout_height="36dp" android:padding="8dp" android:background="@drawable/bg_logo" android:src="@drawable/ic_ui_shield" android:importantForAccessibility="no" app:tint="@color/primary" />
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:layout_marginStart="12dp" android:layout_marginEnd="8dp">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="改版说明与声明" android:textStyle="bold" style="@style/DshaText.Body" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="非官方共存改版 · 与上游无隶属关系" style="@style/DshaText.Caption" />
+                </LinearLayout>
+                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_recovery_right" android:importantForAccessibility="no" app:tint="@color/text_muted" />
+            </LinearLayout>
         </LinearLayout>
     </ScrollView>
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingStart="20dp" android:paddingEnd="20dp" android:paddingBottom="16dp">

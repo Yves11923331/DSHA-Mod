@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 215「已安装」态：白底 + 1px 淡边，和可点击的「安装」同尺寸但降级。
+     不用 bg_badge_local 那种实心灰底 —— 预览里核过，实心灰在卡片上显得比主按钮还重。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/card" />
+    <corners android:radius="10dp" />
+    <stroke android:width="@dimen/stroke" android:color="@color/line" />
+</shape>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 215：社区插件页的柔和底色。
+     全部用「主色/状态色 + 低透明度」而不是另调一套灰，浅色和深色底都能用；
+     深色值在 values-night/colors_215.xml，只调透明度保住对比度。 -->
+<resources>
+    <!-- 图标柔和底 / 官方徽标底：主色 12% -->
+    <color name="primary_soft">#1E1E50D0</color>
+    <!-- 社区徽标底：ok 12% -->
+    <color name="ok_soft">#1A207348</color>
+    <!-- 镜像回退提示条：暖黄底 + 边 -->
+    <color name="warn_soft">#FFF8EC</color>
+    <color name="warn_line">#F2E2C4</color>
+</resources>

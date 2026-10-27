@@ -1,20 +1,28 @@
 <?xml version='1.0' encoding='utf-8'?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/surface" android:orientation="vertical">
-  <LinearLayout android:id="@+id/app_bar" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="60dp" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="18dp" android:paddingEnd="16dp">
-    <FrameLayout android:id="@+id/app_logo" android:layout_width="34dp" android:layout_height="34dp" android:background="@drawable/bg_logo">
-      <ImageView android:layout_width="17dp" android:layout_height="17dp" android:layout_gravity="center" android:contentDescription="@null" android:src="@drawable/ic_terminal" app:tint="@color/primary" />
-    </FrameLayout>
-    <androidx.appcompat.widget.AppCompatImageButton android:id="@+id/sub_back" android:visibility="gone" android:layout_width="48dp" android:layout_height="48dp" android:padding="12dp" android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_ui_back" android:contentDescription="@string/ui_m0201" app:tint="@color/text" />
-    <TextView android:id="@+id/app_title" style="@style/DshaText.PageTitle" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="@dimen/gap_control" android:text="@string/app_name" android:textSize="18sp" />
-    <androidx.appcompat.widget.AppCompatImageButton android:id="@+id/btn_tasks" android:layout_width="44dp" android:layout_height="44dp" android:padding="11dp" android:src="@drawable/ic_ui_tasks" app:tint="@color/text_secondary" android:background="?attr/selectableItemBackgroundBorderless" />
-    <TextView android:id="@+id/btn_theme" style="@style/Widget.DSHA.ToolbarAction" android:layout_width="44dp" android:layout_height="44dp" android:layout_marginEnd="8dp" android:text="@string/ui_m0020" android:padding="12dp" android:background="?attr/selectableItemBackgroundBorderless" />
-    <FrameLayout android:id="@+id/btn_about" android:layout_width="44dp" android:layout_height="44dp" android:background="@drawable/bg_chip_clickable" android:clickable="true" android:contentDescription="@string/ui_m0067" android:focusable="true" android:visibility="gone">
-      <ImageView android:layout_width="16dp" android:layout_height="16dp" android:layout_gravity="center" android:contentDescription="@null" android:src="@drawable/ic_about" app:tint="@color/text_secondary" />
-    </FrameLayout>
+<!-- 最外层 FrameLayout 只做「背景层 + 内容层」的三明治：
+     app_background 铺自定义图 → app_scrim 压一层可调遮罩 → app_root 才是真正的界面。
+     之前背景不生效就是因为没有这一层：window / DecorView 的背景会被每个页面
+     自己的不透明根布局整块盖住。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:id="@+id/app_shell" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/page_bg">
+  <ImageView android:id="@+id/app_background" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="centerCrop" android:visibility="invisible" android:contentDescription="@null" android:importantForAccessibility="no" />
+  <View android:id="@+id/app_scrim" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@android:color/transparent" android:clickable="false" android:focusable="false" />
+  <LinearLayout android:id="@+id/app_root" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@android:color/transparent" android:orientation="vertical">
+    <LinearLayout android:id="@+id/app_bar" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="60dp" android:gravity="center_vertical" android:orientation="horizontal" android:background="@color/appbar_glass" android:paddingStart="18dp" android:paddingEnd="16dp">
+      <FrameLayout android:id="@+id/app_logo" android:layout_width="34dp" android:layout_height="34dp" android:background="@drawable/bg_logo">
+        <ImageView android:layout_width="17dp" android:layout_height="17dp" android:layout_gravity="center" android:contentDescription="@null" android:src="@drawable/ic_terminal" app:tint="@color/primary" />
+      </FrameLayout>
+      <androidx.appcompat.widget.AppCompatImageButton android:id="@+id/sub_back" android:visibility="gone" android:layout_width="48dp" android:layout_height="48dp" android:padding="12dp" android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_ui_back" android:contentDescription="@string/ui_m0201" app:tint="@color/text" />
+      <TextView android:id="@+id/app_title" style="@style/DshaText.PageTitle" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="@dimen/gap_control" android:text="@string/app_name" android:textSize="18sp" />
+      <!-- 215：顶栏三枚符号统一 24dp 线性 / 1.7 线宽 / 44dp 热区 / 无底色；
+           需要表示状态时只把描边上主色（bar_icon_tint 的 selected 态），不加胶囊底。 -->
+      <androidx.appcompat.widget.AppCompatImageButton android:id="@+id/btn_tasks" android:layout_width="44dp" android:layout_height="44dp" android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="后台任务" android:padding="10dp" android:src="@drawable/ic_bar_tasks" app:tint="@color/bar_icon_tint" />
+      <androidx.appcompat.widget.AppCompatImageButton android:id="@+id/btn_theme" android:layout_width="44dp" android:layout_height="44dp" android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="主题" android:padding="10dp" android:src="@drawable/ic_bar_theme_auto" app:tint="@color/bar_icon_tint" />
+      <androidx.appcompat.widget.AppCompatImageButton android:id="@+id/btn_about" android:layout_width="44dp" android:layout_height="44dp" android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="@string/ui_m0067" android:padding="10dp" android:src="@drawable/ic_bar_about" app:tint="@color/bar_icon_tint" android:visibility="gone" />
+    </LinearLayout>
+    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/line" />
+    <TextView android:id="@+id/environment_recovery_banner" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:padding="12dp" android:textColor="@color/primary" android:background="@drawable/bg_chip_clickable" android:textSize="14sp" android:clickable="true" android:focusable="true" android:visibility="gone" android:gravity="center" android:includeFontPadding="false" />
+    <FrameLayout android:id="@+id/fragment_container" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:background="@android:color/transparent" />
+    <View android:layout_width="match_parent" android:layout_height="@dimen/stroke" android:background="@color/line" />
+    <com.google.android.material.bottomnavigation.BottomNavigationView android:id="@+id/bottom_nav" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/bg_nav_double" android:minHeight="68dp" app:itemIconSize="22dp" app:itemPaddingTop="8dp" app:itemPaddingBottom="6dp" app:elevation="0dp" app:itemIconTint="@color/nav_item_tint" app:itemTextColor="@color/nav_item_tint" app:labelVisibilityMode="labeled" app:menu="@menu/bottom_nav_menu" app:itemTextAppearanceActive="@style/Ui2.Nav" app:itemTextAppearanceInactive="@style/Ui2.Nav" />
   </LinearLayout>
-  <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/line" />
-  <TextView android:id="@+id/environment_recovery_banner" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:padding="12dp" android:textColor="@color/primary" android:background="@drawable/bg_chip_clickable" android:textSize="14sp" android:clickable="true" android:focusable="true" android:visibility="gone" android:gravity="center" android:includeFontPadding="false" />
-  <FrameLayout android:id="@+id/fragment_container" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
-  <View android:layout_width="match_parent" android:layout_height="@dimen/stroke" android:background="@color/line" />
-  <com.google.android.material.bottomnavigation.BottomNavigationView android:id="@+id/bottom_nav" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@color/surface" android:minHeight="64dp" app:itemIconSize="20dp" app:itemPaddingTop="8dp" app:itemPaddingBottom="6dp" app:elevation="0dp" app:itemIconTint="@color/nav_item_tint" app:itemTextColor="@color/nav_item_tint" app:labelVisibilityMode="labeled" app:menu="@menu/bottom_nav_menu" app:itemTextAppearanceActive="@style/Ui2.Nav" app:itemTextAppearanceInactive="@style/Ui2.Nav" />
-</LinearLayout>
+</FrameLayout>

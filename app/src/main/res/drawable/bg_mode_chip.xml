@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 横屏三档按钮（未选中）：与全局 chip 同色系，但圆角统一到 radius_small(10dp)，
+     避免和选中态的 radius_control 差 3dp 造成并排不齐。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/card" />
+    <corners android:radius="@dimen/radius_small" />
+    <stroke android:width="@dimen/stroke" android:color="@color/line" />
+</shape>

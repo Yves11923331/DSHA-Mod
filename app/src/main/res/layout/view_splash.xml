@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 215 启动页（01「白场」口径）：
+     图标 88dp 不放大、标题 17sp、底部 2px 进度线；动效只用 alpha / scale / translation，
+     总时长 1.18s（见 ui/SplashOverlay.java）。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/splashRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_splash"
+    android:clickable="true"
+    android:focusable="true">
+
+    <!-- 居中偏上：靠 marginBottom 把整组往上抬，不用百分比布局 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginBottom="120dp"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/splashIcon"
+            android:layout_width="88dp"
+            android:layout_height="88dp"
+            android:contentDescription="@null"
+            android:scaleType="fitCenter"
+            android:src="@drawable/splash_icon"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.DSHA.SplashIcon" />
+
+        <TextView
+            android:id="@+id/splashTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.06"
+            android:text="@string/app_name"
+            android:textColor="@color/text"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/splashSub"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.04"
+            android:text="DeepSeek Harness · 共存版"
+            android:textColor="@color/text_muted"
+            android:textSize="11.5sp" />
+    </LinearLayout>
+
+    <!-- 底部 2px 进度线：轨道 + 主色走针 -->
+    <FrameLayout
+        android:layout_width="112dp"
+        android:layout_height="2dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="74dp"
+        android:background="@color/splash_track">
+
+        <View
+            android:id="@+id/splashLine"
+            android:layout_width="match_parent"
+            android:layout_height="2dp"
+            android:background="@color/primary" />
+    </FrameLayout>
+</FrameLayout>

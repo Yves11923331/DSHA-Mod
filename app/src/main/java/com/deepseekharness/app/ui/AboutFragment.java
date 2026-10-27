@@ -82,6 +82,12 @@ public final class AboutFragment extends Fragment {
         UiText.choose("DSHA 与随包第三方组件", "DSHA and bundled components"),
         R.drawable.ic_recovery_document,
         this::showLicenses);
+    ui.entry(
+        links,
+        "改版说明与声明",
+        "非官方共存改版 · 与上游无隶属关系",
+        R.drawable.ic_ui_shield,
+        () -> ModNotice.show(requireContext()));
     ui.footer.setVisibility(View.GONE);
     return ui.root;
   }

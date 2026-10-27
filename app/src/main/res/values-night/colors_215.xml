@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary_soft">#226AA4FF</color>
+    <color name="ok_soft">#227ED6A2</color>
+    <color name="warn_soft">#211B12</color>
+    <color name="warn_line">#3A3020</color>
+</resources>

@@ -1,13 +1,131 @@
-<?xml version='1.0' encoding='utf-8'?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="@dimen/gap_control" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="@dimen/card_pad">
-    <TextView android:id="@+id/pluginName" style="@style/DshaText.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:fontFamily="sans" android:breakStrategy="simple" android:textSize="14sp" android:textStyle="bold" />
-    <TextView android:id="@+id/pluginDesc" style="@style/DshaText.Caption" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/gap_tight" android:maxLines="3" android:ellipsize="end" android:textSize="12sp" />
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/gap_control" android:orientation="horizontal" android:gravity="center_vertical">
-        <TextView android:id="@+id/pluginStatus" style="@style/DshaText.Caption" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginEnd="@dimen/gap_tight" />
-        <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/pluginSwitch" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp" android:showText="false" />
-        <TextView android:id="@+id/pluginActions" style="@style/PluginAction" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="@dimen/gap_tight" android:background="@drawable/bg_polished_action" android:text="@string/ui_m0146" />
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 221 插件卡（方案 A）
+     旧版的毛病：名称/描述/状态挤在一列，右边并排「开关 + 更多」两个控件，
+     底部还有一个「展开插件详情」大按钮 + 隐藏的详情文本 + 删除按钮 —— 单卡接近 180dp。
+     现在：图标 + 名称/版本 + 开关 一行，描述 2 行，徽标 + 状态 一行；
+     点整张卡打开操作菜单（详情/复制/导出/更新/回退/删除），Switch 单独拦截。
+     id 全部保留给探针/对账用。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="9dp"
+    android:background="@drawable/bg_card"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:id="@+id/pluginIconBox"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_icon_soft">
+
+            <ImageView
+                android:id="@+id/pluginIcon"
+                android:layout_width="21dp"
+                android:layout_height="21dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_plugins"
+                android:contentDescription="@null"
+                app:tint="@color/primary" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/pluginName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="@color/text"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/pluginVersion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="@color/text_muted"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/pluginSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:showText="false" />
     </LinearLayout>
-    <Button android:id="@+id/pluginExpand" style="@style/Widget.DSHA.TextButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="44dp" />
-    <TextView android:id="@+id/pluginDetails" style="@style/DshaText.Caption" android:layout_width="match_parent" android:layout_height="wrap_content" android:textIsSelectable="true" android:visibility="gone" />
-    <Button android:id="@+id/pluginDelete" style="@style/Widget.DSHA.TextButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="44dp" android:textColor="@color/err" android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/pluginDesc"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="7dp"
+        android:ellipsize="end"
+        android:includeFontPadding="false"
+        android:lineSpacingExtra="2dp"
+        android:maxLines="2"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="9dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/pluginBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_badge_official"
+            android:includeFontPadding="false"
+            android:paddingStart="7dp"
+            android:paddingTop="3dp"
+            android:paddingEnd="7dp"
+            android:paddingBottom="3dp"
+            android:textColor="@color/primary"
+            android:textSize="9.5sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/pluginStateDot"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="7dp"
+            android:includeFontPadding="false"
+            android:text="●"
+            android:textColor="@color/ok"
+            android:textSize="8sp" />
+
+        <TextView
+            android:id="@+id/pluginStatus"
+            style="@style/DshaText.Caption"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="5dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textSize="10.5sp" />
+    </LinearLayout>
 </LinearLayout>

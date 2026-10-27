@@ -14,6 +14,18 @@ const serviceIdentity = value => value?.[Symbol.for('cordis.original')] ?? value
 const fail = message => { throw new Error('DSHA_DESTRUCTIVE_BLOCKED: ' + message); };
 // This is the signed launcher SDK, not a tool argument, env boolean, or HTTP
 // address supplied by the model. Its authenticated current-run proof is required.
+// The bridge status file is written by the host (ok port=… / fail …). It is the
+// only place that explains *why* 3090 is unusable, so a denied or malformed
+// reply must carry it: without it the user is told "consent unavailable" even
+// when the real cause is another DSHA instance holding the port.
+const bridgeStatus = () => {
+  try {
+    const text = readFileSync('/root/.dsh/.bridge_status', 'utf8');
+    if (typeof text !== 'string') return '';
+    const safe = text.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim();
+    return safe.length > 200 ? safe.slice(0, 200) + '…' : safe;
+  } catch { return ''; }
+};
 async function globalConsent(signal) {
   let timeout;
   let stage = 'SDK_UNAVAILABLE';
@@ -28,11 +40,22 @@ async function globalConsent(signal) {
       expectedConnectionGeneration: connection.generation,
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     });
-    if (!response.ok) return unavailable('HTTP_ERROR', undefined, response.status);
-    stage = 'INVALID_REPLY';
+    // A bridge owned by another DSHA instance answers with 200 + the legacy
+    // "[UNAUTHORIZED]" sentinel (old builds) or a UNAUTHORIZED code (new builds).
+    // Both mean "wrong instance / wrong token", never "consent is broken".
+    if (!response.ok) return unavailable(response.status === 401 ? 'AUTH_REJECTED' : 'HTTP_ERROR', undefined, response.status);
+    stage = 'REPLY_NOT_JSON';
     const envelope = await response.json();
-    if (typeof envelope.result !== 'string' || Buffer.byteLength(envelope.result) > 4096) return unavailable('INVALID_REPLY');
-    const value = JSON.parse(envelope.result);
+    if (envelope?.code === 'UNAUTHORIZED' || envelope?.result === '[UNAUTHORIZED]') return unavailable('AUTH_REJECTED');
+    // build170 and other old bridges do not know /app/native-policy and answer
+    // "[NO_CMD]" with 200. That is a foreign/old bridge on 3090, not a bad
+    // consent record; it must not fall through to REPLY_NOT_JSON.
+    if (envelope?.result === '[NO_CMD]') return unavailable('BRIDGE_UNAVAILABLE');
+    if (typeof envelope?.result !== 'string' || Buffer.byteLength(envelope.result) > 4096) return unavailable('REPLY_NOT_JSON');
+    let value;
+    try { value = JSON.parse(envelope.result); }
+    catch (cause) { return unavailable('REPLY_NOT_JSON', cause); }
+    stage = 'INVALID_REPLY';
     const uuid = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/;
     if (value?.schema === 1 && value.available === false) return unavailable('NOT_AVAILABLE');
     if (!value || value.schema !== 1 || value.available !== true || typeof value.globalAllow !== 'boolean'
@@ -65,7 +88,19 @@ function consentFailure(code, detail, cause) {
 function availableConsent(reading) {
   if (reading.kind === 'unavailable') {
     const status = Number.isInteger(reading.httpStatus) ? ' HTTP ' + reading.httpStatus : '';
-    consentFailure('DSHA_NATIVE_CONSENT_UNAVAILABLE', reading.reason + status + '; current native consent could not be verified.', reading.cause);
+    // Never translate a port-ownership / credential problem into "consent
+    // unavailable": the hint plus the host's bridge status are what the user
+    // actually needs in order to stop the other instance.
+    const hint = reading.reason === 'AUTH_REJECTED'
+      ? '; 设备桥 3090 拒绝本实例令牌（可能被另一个 DSHA 实例占用），不是授权问题'
+      : reading.reason === 'BRIDGE_UNAVAILABLE'
+        ? '; 3090 上的桥不是本实例/是旧版（对端不认识 native-policy），请关闭占用端口的其他 DSHA 实例'
+        : '; current native consent could not be verified.';
+    const bridge = bridgeStatus();
+    consentFailure(
+      'DSHA_NATIVE_CONSENT_UNAVAILABLE',
+      reading.reason + status + hint + (bridge ? '; bridge_status=' + bridge : ''),
+      reading.cause);
   }
   return reading.facts;
 }

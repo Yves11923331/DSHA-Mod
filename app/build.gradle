@@ -51,9 +51,12 @@ android {
         minSdk 30
         targetSdk 37
         buildConfigField 'String', 'BUNDLED_PNPM_VERSION', '"' + bundledTools.pnpm.version + '"'
-        versionCode 190
-        // DSHA 修订号 + 固定的北京时间戳 + 内置 DSH 版本；同一交付重建不变。
-        versionName "0.2.1-rc.2-20261022.2100-dsh0.2.1-rc.2"
+        versionCode 230
+        // 217 起改用短版本名：dsha.mod.v<N>。
+        // 上游版本/内置 DSH 版本仍由 Constants.DSH_VERSION 与关于页展示，
+        // 不再堆进 versionName（旧的 "0.2.1-rc.2-时间戳-dsh0.2.1-rc.2" 太长，
+        // 在设置页/关于对话框里换行难看）。versionCode 继续逐版 +1，系统覆盖安装靠它。
+        versionName "dsha.mod.v11"
         testInstrumentationRunner project.findProperty('dsha.testRunner') ?: "com.deepseekharness.app.Rc13Instrumentation"
         ndk {
             abiFilters 'arm64-v8a'
@@ -113,6 +116,22 @@ android {
             if (!unsignedPackage) signingConfig signingConfigs.publish
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+        // 共存版：与正式包并排安装。复用 standard/low 的 flavor 源集，只改包名与应用名，
+        // 数据目录、SharedPreferences 与 Android 授权由此完全独立。
+        coexist {
+            initWith release
+            applicationIdSuffix ".coexist"
+            // 217 起不再给版本名加 "-A" 后缀：共存标识由包名（.coexist）和
+            // 应用名（DSHA-Mod）承担，版本名保持短版本号本身。
+
+        }
+    }
+
+    // 本机为 aarch64 + qemu 模拟 aapt2，lintVital 在该环境下耗时过长且依赖它的
+    // 文本输出任务；共存版构建跳过 release lint，编译与本包检查不受影响。
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
     }
 
     packagingOptions {
@@ -302,7 +321,7 @@ def prepareRecoveryAssets = tasks.register("prepareRecoveryAssets", Exec) {
             "--shared-assets", layout.buildDirectory.dir("generated/standardAssets").get().asFile.absolutePath)
 }
 tasks.configureEach {
-    if (name.matches("merge(Standard|Low).*Assets")) dependsOn(prepareRecoveryAssets)
+    if (name.matches("merge(Standard|Low)(Coexist)?.*Assets")) dependsOn(prepareRecoveryAssets)
 }
 
 def verifyBackupDependencies = tasks.register("verifyBackupDependencies") {

@@ -30,10 +30,12 @@ import com.google.android.material.materialswitch.MaterialSwitch;
 public final class DeviceGrantsFragment extends Fragment {
   private MaterialSwitch sms;
   private TextView smsStatus;
-  private TextView screenPolicyStatus;
-  private android.widget.Button screenPause;
-  private android.widget.Button screenRules, screenRevoke;
-  private android.widget.RadioGroup screenModes;
+  /** 屏幕操作卡片里的动态行（与设置页同一套尺寸，见 {@link GrantRow}）。 */
+  private GrantRow screenModeRow;
+
+  private GrantRow screenRulesRow;
+  private GrantRow screenPauseRow;
+  private GrantRow screenRevokeRow;
   private boolean updating;
   private int adbStatusRequest;
   private FullPermissionControls fullPermissions;
@@ -45,7 +47,7 @@ public final class DeviceGrantsFragment extends Fragment {
           if (!isResumed() || getView() == null) return;
           refreshChannelLabels();
           if (fullPermissions != null) fullPermissions.refresh();
-          main.postDelayed(this, 1000);
+          main.postDelayed(this, 2000);
         }
       };
 
@@ -82,54 +84,27 @@ public final class DeviceGrantsFragment extends Fragment {
     android.widget.LinearLayout screenCard =
         (android.widget.LinearLayout) view.findViewById(R.id.computer_use_hint).getParent();
     addScreenPolicyControls(ctx, screenCard);
-    android.widget.Button revoke = new androidx.appcompat.widget.AppCompatButton(ctx);
-    screenRevoke = revoke;
-    revoke.setText(
-        com.deepseekharness.app.util.UiText.choose(
-            "暂停屏幕操作并撤销预授权", "Pause screen actions and revoke preauthorizations"));
-    revoke.setTextSize(12);
-    revoke.setAllCaps(false);
-    revoke.setBackgroundResource(R.drawable.bg_btn);
-    screenCard.addView(revoke, new android.widget.LinearLayout.LayoutParams(-1, -2));
-    revoke.setOnClickListener(
-        button -> {
-          boolean persisted =
-              new DeviceGrants(ctx)
-                  .setScreenPolicy(
-                      com.deepseekharness.app.util.ScreenConfirmationPolicy.Mode.MANUAL,
-                      java.util.Map.of());
-          com.deepseekharness.app.HttpShellService.setScreenPaused(ctx, true);
-          com.deepseekharness.app.HttpShellService.revokeScreenGrant(ctx);
-          refreshScreenPolicy();
-          toast(
-              persisted
-                  ? com.deepseekharness.app.util.UiText.choose(
-                      "已暂停屏幕操作并撤销预授权；可点恢复后继续",
-                      "Screen actions are paused and preauthorizations revoked. Use Resume to continue")
-                  : com.deepseekharness.app.util.UiText.text("授权保存失败，请重试"));
-        });
-    android.widget.Button virtualScreen = new androidx.appcompat.widget.AppCompatButton(ctx);
-    virtualScreen.setText(
-        com.deepseekharness.app.util.UiText.choose("打开虚拟屏", "Open virtual screen"));
-    virtualScreen.setAllCaps(false);
-    virtualScreen.setTextSize(12);
-    virtualScreen.setBackgroundResource(R.drawable.bg_btn);
-    virtualScreen.setOnClickListener(
-        button ->
-            startActivity(
-                new Intent(ctx, com.deepseekharness.app.vscreen.VirtualScreenActivity.class)));
-    if (com.deepseekharness.app.vscreen.VirtualScreenManager.supported(ctx)) {
-      android.widget.TextView virtualHint = new android.widget.TextView(ctx);
-      virtualHint.setText(
-          com.deepseekharness.app.util.UiText.choose(
-              "虚拟屏需要已连接的设备通道。无障碍不会自动创建，请打开虚拟屏后点“创建竖屏”或“创建横屏”；页内有使用说明。",
-              "A virtual screen requires a connected device channel. Accessibility does not create it automatically. Open virtual screen, then tap Create portrait or Create landscape. Instructions are available on that page."));
-      virtualHint.setTextSize(12);
-      virtualHint.setTextColor(ctx.getColor(R.color.text_secondary));
-      screenCard.addView(virtualHint, new android.widget.LinearLayout.LayoutParams(-1, -2));
-      screenCard.addView(virtualScreen, new android.widget.LinearLayout.LayoutParams(-1, -2));
-    }
 
+    // 221：行式布局 —— 整行或右侧箭头点击，转发给原来那些隐藏按钮的 performClick()。
+    // 这样 840 行里的绑定逻辑一行都不用改，只是把入口从「按钮」换成「行」。
+    bindRow(view, R.id.row_root, R.id.row_root_go, R.id.device_root_verify);
+    bindRow(view, R.id.row_shizuku, R.id.row_shizuku_go, R.id.workspace_shizuku_auth);
+    bindRow(view, R.id.row_adb, R.id.row_adb_go, R.id.config_adb_pair);
+    bindRow(view, R.id.row_a11y, R.id.row_a11y_go, R.id.computer_use_accessibility);
+    bindRow(view, R.id.row_battery, R.id.row_battery_go, R.id.config_battery_opt);
+    // 三个开关行：整行点击 = 切开关（和设置页一致），不是只有那个小开关能点。
+    bindSwitchRow(view, R.id.row_sms, R.id.device_sms);
+    bindSwitchRow(view, R.id.row_location, R.id.config_cap_location);
+    bindSwitchRow(view, R.id.row_sensors, R.id.config_cap_sensors);
+    // Shizuku 长按 = 打开 Shizuku App（原来那个独立按钮）
+    android.view.View shizukuRow = view.findViewById(R.id.row_shizuku);
+    if (shizukuRow != null)
+      shizukuRow.setOnLongClickListener(
+          v -> {
+            android.view.View open = view.findViewById(R.id.device_shizuku_open);
+            if (open != null) open.performClick();
+            return true;
+          });
     CompoundButton root = view.findViewById(R.id.config_root_shell);
     root.setChecked(new ConfigStore(ctx).isRootShellAllowed());
     root.setOnCheckedChangeListener(
@@ -270,85 +245,220 @@ public final class DeviceGrantsFragment extends Fragment {
     return view;
   }
 
+  /**
+   * 屏幕操作的动态行。
+   *
+   * <p>以前这里是「一段长说明 + 原生 RadioGroup + 三个默认按钮」，和设置页的行式卡片
+   * 完全两套皮肤。现在全部换成 {@link GrantRow}：一行一件事，点行开弹窗，开关就地生效。
+   * 说明文字没丢，挪进「确认规则说明」那一行的 {@link CardSheet}。
+   */
   private void addScreenPolicyControls(Context ctx, android.widget.LinearLayout card) {
-    screenPolicyStatus = new TextView(ctx);
-    screenPolicyStatus.setTextSize(12);
-    card.addView(screenPolicyStatus, new android.widget.LinearLayout.LayoutParams(-1, -2));
-    screenModes = new android.widget.RadioGroup(ctx);
+    // 1) 确认方式：一行 + 单选弹窗
+    screenModeRow =
+        GrantRow.row(
+            ctx,
+            com.deepseekharness.app.R.drawable.ic_ui_tasks,
+            com.deepseekharness.app.util.UiText.choose("确认方式", "Confirmation mode"),
+            "");
+    screenModeRow.root.setOnClickListener(v -> showScreenModeChooser(ctx));
+    card.addView(screenModeRow.root);
+    card.addView(GrantRow.divider(ctx));
+
+    // 2) 应用确认规则
+    screenRulesRow =
+        GrantRow.row(
+            ctx,
+            com.deepseekharness.app.R.drawable.ic_ui2_auto,
+            com.deepseekharness.app.util.UiText.choose("应用确认规则", "App confirmation rules"),
+            "");
+    screenRulesRow.root.setOnClickListener(v -> showScreenRules());
+    card.addView(screenRulesRow.root);
+    card.addView(GrantRow.divider(ctx));
+
+    // 3) 暂停 / 恢复（开关行：开 = 已暂停）
+    screenPauseRow =
+        GrantRow.row(
+            ctx,
+            com.deepseekharness.app.R.drawable.ic_recovery_clock,
+            com.deepseekharness.app.util.UiText.choose(
+                "暂停助手屏幕操作", "Pause assistant screen actions"),
+            com.deepseekharness.app.util.UiText.choose(
+                "暂停期间读屏与点按全部拒绝", "Reading and tapping are refused while paused"),
+            true,
+            false);
+    screenPauseRow.toggle.setOnCheckedChangeListener(
+        (button, checked) -> {
+          if (updating) return;
+          com.deepseekharness.app.HttpShellService.setScreenPaused(ctx, checked);
+          refreshScreenPolicy();
+        });
+    card.addView(screenPauseRow.root);
+    card.addView(GrantRow.divider(ctx));
+
+    // 4) 撤销预授权（破坏性操作，先问一句）
+    screenRevokeRow =
+        GrantRow.row(
+            ctx,
+            com.deepseekharness.app.R.drawable.ic_recovery_refresh,
+            com.deepseekharness.app.util.UiText.choose("撤销屏幕预授权", "Revoke screen preapprovals"),
+            com.deepseekharness.app.util.UiText.choose(
+                "清空已记住的应用规则，并恢复为全部手动", "Clear remembered app rules and confirm every action again"));
+    screenRevokeRow.root.setOnClickListener(v -> confirmRevokeScreen(ctx));
+    card.addView(screenRevokeRow.root);
+    card.addView(GrantRow.divider(ctx));
+
+    // 5) 说明（原来那段 100 多字的正文，收进弹窗）
+    GrantRow details =
+        GrantRow.row(
+            ctx,
+            com.deepseekharness.app.R.drawable.ic_recovery_document,
+            com.deepseekharness.app.util.UiText.choose("确认规则说明", "How confirmation works"),
+            com.deepseekharness.app.util.UiText.choose(
+                "只影响 DSHA 的确认，不授予系统权限", "Only affects DSHA confirmations; grants no system permission"));
+    details.root.setOnClickListener(
+        v ->
+            CardSheet.show(
+                ctx,
+                com.deepseekharness.app.util.UiText.choose(
+                    "屏幕确认规则", "Screen confirmation rules"),
+                com.deepseekharness.app.util.UiText.choose(
+                    "这里设置的是 DSHA 自己的屏幕确认，不会授予任何 Android 系统权限。\n\n全部手动：每一次读屏、点按都要确认。\n按应用自定义：为指定应用单独放行，没配置的应用仍然询问。\n全部允许：已获准的屏幕操作不再确认，包含银行、支付等敏感界面。\n\n规则保存在本机，不随备份迁移；随时可以撤销，撤销后恢复为全部手动。全局权限开关只决定要不要弹 DSHA 安全确认，与这里的规则互不替代。",
+                    "These are DSHA's own screen confirmations and grant no Android permission.\n\nConfirm every action: each read and tap is confirmed.\nCustomize by app: allow selected apps; unconfigured apps still ask.\nAllow all: authorized screen actions skip confirmation, including sensitive screens such as banks and payments.\n\nRules stay on this device and are excluded from backups. Revoke them at any time to restore Confirm every action. The global permission switch only controls DSHA safety confirmations and does not replace these rules.")));
+    card.addView(details.root);
+
+    // 6) 虚拟屏（能力可用时）
+    if (com.deepseekharness.app.vscreen.VirtualScreenManager.supported(ctx)) {
+      card.addView(GrantRow.divider(ctx));
+      GrantRow virtualScreen =
+          GrantRow.row(
+              ctx,
+              com.deepseekharness.app.R.drawable.ic_ui2_box,
+              com.deepseekharness.app.util.UiText.choose("打开虚拟屏", "Open virtual screen"),
+              com.deepseekharness.app.util.UiText.choose(
+                  "需要已连接的设备通道；页内有创建说明",
+                  "Needs a connected device channel; instructions are on that page"));
+      virtualScreen.root.setOnClickListener(
+          v ->
+              startActivity(
+                  new Intent(ctx, com.deepseekharness.app.vscreen.VirtualScreenActivity.class)));
+      card.addView(virtualScreen.root);
+    }
+    refreshScreenPolicy();
+  }
+
+  /** 确认方式：单选弹窗（不用 RadioGroup —— 设置页没有第二种写法）。 */
+  private void showScreenModeChooser(Context ctx) {
+    var grants = new DeviceGrants(ctx);
+    var policy = grants.screenPolicy();
     String[] labels = {
       com.deepseekharness.app.util.UiText.choose("全部手动", "Confirm every action"),
       com.deepseekharness.app.util.UiText.choose("按应用自定义", "Customize by app"),
       com.deepseekharness.app.util.UiText.choose("全部允许", "Allow all")
     };
-    for (int index = 0; index < labels.length; index++) {
-      var radio = new androidx.appcompat.widget.AppCompatRadioButton(ctx);
-      radio.setId(android.view.View.generateViewId());
-      radio.setText(labels[index]);
-      radio.setTag(com.deepseekharness.app.util.ScreenConfirmationPolicy.Mode.values()[index]);
-      screenModes.addView(radio);
+    int checked = 0;
+    for (int i = 0; i < com.deepseekharness.app.util.ScreenConfirmationPolicy.Mode.values().length;
+        i++) {
+      if (com.deepseekharness.app.util.ScreenConfirmationPolicy.Mode.values()[i] == policy.mode) {
+        checked = i;
+        break;
+      }
     }
-    card.addView(screenModes, new android.widget.LinearLayout.LayoutParams(-1, -2));
-    screenModes.setOnCheckedChangeListener(
-        (group, checked) -> {
-          if (updating) return;
-          var selected = group.findViewById(checked);
-          if (selected == null) return;
-          var grants = new DeviceGrants(ctx);
-          if (!grants.setScreenPolicy(
-              (com.deepseekharness.app.util.ScreenConfirmationPolicy.Mode) selected.getTag(),
-              grants.screenPolicy().rules))
-            toast(com.deepseekharness.app.util.UiText.text("授权保存失败，请重试"));
-          refreshScreenPolicy();
-        });
-    var rules = new androidx.appcompat.widget.AppCompatButton(ctx);
-    screenRules = rules;
-    rules.setText(
-        com.deepseekharness.app.util.UiText.choose("编辑应用确认规则", "Edit app confirmation rules"));
-    rules.setAllCaps(false);
-    rules.setBackgroundResource(R.drawable.bg_btn);
-    rules.setOnClickListener(button -> showScreenRules());
-    card.addView(rules, new android.widget.LinearLayout.LayoutParams(-1, -2));
-    screenPause = new androidx.appcompat.widget.AppCompatButton(ctx);
-    screenPause.setAllCaps(false);
-    screenPause.setBackgroundResource(R.drawable.bg_btn);
-    screenPause.setOnClickListener(
-        button -> {
-          com.deepseekharness.app.HttpShellService.setScreenPaused(
-              ctx, !com.deepseekharness.app.HttpShellService.screenPaused());
-          refreshScreenPolicy();
-        });
-    card.addView(screenPause, new android.widget.LinearLayout.LayoutParams(-1, -2));
-    refreshScreenPolicy();
+    new DshaDialogBuilder(ctx)
+        .setTitle(com.deepseekharness.app.util.UiText.choose("确认方式", "Confirmation mode"))
+        .setSingleChoiceItems(
+            labels,
+            checked,
+            (dialog, which) -> {
+              dialog.dismiss();
+              var current = new DeviceGrants(ctx).screenPolicy();
+              if (!new DeviceGrants(ctx)
+                  .setScreenPolicy(
+                      com.deepseekharness.app.util.ScreenConfirmationPolicy.Mode.values()[which],
+                      current.rules))
+                toast(com.deepseekharness.app.util.UiText.text("授权保存失败，请重试"));
+              refreshScreenPolicy();
+            })
+        .setNegativeButton(com.deepseekharness.app.util.UiText.text("取消"), null)
+        .show();
+  }
+
+  /** 撤销是破坏性的：先确认，再清空规则并暂停。 */
+  private void confirmRevokeScreen(Context ctx) {
+    new DshaDialogBuilder(ctx)
+        .setTitle(com.deepseekharness.app.util.UiText.choose("撤销屏幕预授权", "Revoke screen preapprovals"))
+        .setMessage(
+            com.deepseekharness.app.util.UiText.choose(
+                "将清空已记住的应用确认规则，并暂停助手屏幕操作。之后需要重新设置才能继续读屏、点按。",
+                "This clears remembered app rules and pauses assistant screen actions. Set it up again before the assistant can read the screen or tap."))
+        .setNegativeButton(com.deepseekharness.app.util.UiText.text("取消"), null)
+        .setPositiveButton(
+            com.deepseekharness.app.util.UiText.choose("撤销并暂停", "Revoke and pause"),
+            (dialog, which) -> {
+              boolean persisted =
+                  new DeviceGrants(ctx)
+                      .setScreenPolicy(
+                          com.deepseekharness.app.util.ScreenConfirmationPolicy.Mode.MANUAL,
+                          java.util.Map.of());
+              com.deepseekharness.app.HttpShellService.setScreenPaused(ctx, true);
+              com.deepseekharness.app.HttpShellService.revokeScreenGrant(ctx);
+              refreshScreenPolicy();
+              toast(
+                  persisted
+                      ? com.deepseekharness.app.util.UiText.choose(
+                          "已暂停屏幕操作并撤销预授权", "Screen actions paused and preapprovals revoked")
+                      : com.deepseekharness.app.util.UiText.text("授权保存失败，请重试"));
+            })
+        .show();
   }
 
   private void refreshScreenPolicy() {
-    if (screenModes == null || !isAdded()) return;
-    var policy = new DeviceGrants(requireContext()).screenPolicy();
-    boolean global = new DeviceGrants(requireContext()).consentPolicy().globalAllow();
+    if (screenModeRow == null || !isAdded()) return;
+    var ctx = requireContext();
+    var grants = new DeviceGrants(ctx);
+    var policy = grants.screenPolicy();
+    boolean paused = com.deepseekharness.app.HttpShellService.screenPaused();
     updating = true;
-    for (int i = 0; i < screenModes.getChildCount(); i++) {
-      var radio = (android.widget.RadioButton) screenModes.getChildAt(i);
-      radio.setChecked(radio.getTag() == policy.mode);
-      radio.setEnabled(true);
+    try {
+      if (screenPauseRow != null && screenPauseRow.toggle != null) {
+        screenPauseRow.toggle.setChecked(paused);
+      }
+    } finally {
+      updating = false;
     }
-    updating = false;
-    if (screenRules != null) screenRules.setEnabled(true);
-    if (screenRevoke != null) screenRevoke.setEnabled(true);
-    screenPause.setEnabled(true);
-    screenPolicyStatus.setText(
-        global
+    GrantRow.setSubtitle(
+        screenModeRow,
+        switch (policy.mode) {
+          case MANUAL ->
+              com.deepseekharness.app.util.UiText.choose(
+                  "全部手动：每次读屏、点按都要确认", "Confirm every action: each read and tap is confirmed");
+          case CUSTOM ->
+              com.deepseekharness.app.util.UiText.choose(
+                  "按应用自定义：未配置的应用仍然询问", "Customize by app: unconfigured apps still ask");
+          case ALLOW_ALL ->
+              com.deepseekharness.app.util.UiText.choose(
+                  "全部允许：敏感界面也不再确认", "Allow all: even sensitive screens skip confirmation");
+        });
+    int rules = policy.rules.size();
+    GrantRow.setSubtitle(
+        screenRulesRow,
+        rules <= 0
             ? com.deepseekharness.app.util.UiText.choose(
-                "全局权限已开启：已授权能力免 DSHA 安全确认。可编辑下列保留规则；关闭全局后按这些规则确认。独立撤销或暂停仍有效。",
-                "Global permission is on: authorized capabilities skip DSHA confirmation. You can edit the retained rules below; they apply when global permission is off. Explicit revocation or pause remains effective.")
-            : com.deepseekharness.app.util.UiText.choose(
-                "仅设置 DSHA 的屏幕确认；不会授予系统权限。全部允许包含敏感界面；自定义中未配置的应用仍询问。规则保存在本机，不随备份迁移。",
-                "These rules only control DSHA confirmations and do not grant system permissions. Allow all includes sensitive screens. Unconfigured apps still ask in custom mode. Rules stay on this device and are excluded from backups."));
-    screenPause.setText(
-        com.deepseekharness.app.HttpShellService.screenPaused()
+                "未配置单独放行或询问的应用", "No app-specific allow or ask rule yet")
+            : com.deepseekharness.app.util.UiText.format(
+                com.deepseekharness.app.util.UiText.choose(
+                    "已配置 %s 个应用", "%s app rule(s) configured"),
+                String.valueOf(rules)));
+    GrantRow.setSubtitle(
+        screenPauseRow,
+        paused
             ? com.deepseekharness.app.util.UiText.choose(
-                "恢复助手屏幕操作", "Resume assistant screen actions")
+                "已暂停：读屏与点按全部拒绝", "Paused: reading and tapping are refused")
             : com.deepseekharness.app.util.UiText.choose(
-                "暂停助手屏幕操作", "Pause assistant screen actions"));
+                "运行中：按上面的确认方式执行", "Active: follows the confirmation mode above"));
+    GrantRow.setSubtitle(
+        screenRevokeRow,
+        com.deepseekharness.app.util.UiText.choose(
+            "清空已记住的应用规则，并恢复为全部手动", "Clear remembered app rules and confirm every action again"));
   }
 
   private void refreshNativePolicyControls() {
@@ -539,15 +649,16 @@ public final class DeviceGrantsFragment extends Fragment {
     TextView shizuku = page.findViewById(R.id.workspace_shizuku_status);
     TextView root = page.findViewById(R.id.device_root_status);
     if (shizuku.getTag() == null)
-      shizuku.setText(
+      setTextIfChanged(
+          shizuku,
           com.deepseekharness.app.util.UiStateText.render(
               ShizukuShell.userStatus(requireContext())));
-    ((TextView) page.findViewById(R.id.workspace_shizuku_auth))
-        .setText(
-            ShizukuShell.hasPermission()
-                ? com.deepseekharness.app.util.UiText.text("验证 Shizuku 连接")
-                : com.deepseekharness.app.util.UiText.text("授权 Shizuku"));
-    if (root.getTag() == null) root.setText(RootShell.status(requireContext()));
+    setTextIfChanged(
+        page.findViewById(R.id.workspace_shizuku_auth),
+        ShizukuShell.hasPermission()
+            ? com.deepseekharness.app.util.UiText.text("验证 Shizuku 连接")
+            : com.deepseekharness.app.util.UiText.text("授权 Shizuku"));
+    if (root.getTag() == null) setTextIfChanged(root, RootShell.status(requireContext()));
   }
 
   private void saveSms(boolean enabled) {
@@ -567,13 +678,14 @@ public final class DeviceGrantsFragment extends Fragment {
     updating = true;
     sms.setChecked(allowed);
     updating = false;
-    smsStatus.setText(
+    setTextIfChanged(
+        smsStatus,
         allowed
             ? com.deepseekharness.app.util.UiText.text("已预授权 · 关闭可撤销")
             : com.deepseekharness.app.util.UiText.choose(
                 "已关闭 · 查询会被阻止", "Off · queries are blocked"));
-    smsStatus.setTextColor(
-        requireContext().getColor(allowed ? R.color.primary : R.color.text_muted));
+    int secondary = requireContext().getColor(R.color.text_secondary);
+    if (smsStatus.getCurrentTextColor() != secondary) smsStatus.setTextColor(secondary);
   }
 
   @Override
@@ -662,7 +774,12 @@ public final class DeviceGrantsFragment extends Fragment {
   }
 
   /** 后台读 ADB 通道真实状态（key/deps/端口 + 保活服务的连接状态），刷到状态栏。 */
+  private boolean adbStatusBusy;
+
   private void refreshAdbStatus(final TextView status) {
+    // 上一次还在算就别再起线程（这个页面每 2 秒刷一次，避免线程堆积）。
+    if (adbStatusBusy) return;
+    adbStatusBusy = true;
     final Context app = requireContext().getApplicationContext();
     final View page = getView();
     final android.app.Activity activity = getActivity();
@@ -670,14 +787,21 @@ public final class DeviceGrantsFragment extends Fragment {
     final int request = ++adbStatusRequest;
     new Thread(
             () -> {
-              final String text = computeAdbStatus(app);
+              final String text;
+              try {
+                text = computeAdbStatus(app);
+              } catch (Throwable error) {
+                adbStatusBusy = false;
+                return;
+              }
               activity.runOnUiThread(
                   () -> {
+                    adbStatusBusy = false;
                     if (request != adbStatusRequest
                         || status == null
                         || getView() != page
                         || !isAdded()) return;
-                    status.setText(com.deepseekharness.app.util.UiText.status(text));
+                    setTextIfChanged(status, com.deepseekharness.app.util.UiText.status(text));
                     if (text.startsWith("环境任务进行中") && isResumed())
                       status.postDelayed(
                           () -> {
@@ -782,6 +906,31 @@ public final class DeviceGrantsFragment extends Fragment {
   }
 
   /** 刷新「所有文件访问权限」状态行（含从系统设置返回后的更新）。 */
+  /** 把一行的点击（含右侧箭头）转发给某个隐藏按钮，让旧绑定逻辑继续生效。 */
+  /** 文本没变就不 setText：这个页面每 2 秒刷一次，别让相同内容反复触发 measure/draw。 */
+  private static void setTextIfChanged(TextView view, String text) {
+    if (view == null || text == null) return;
+    if (!text.contentEquals(view.getText())) view.setText(text);
+  }
+
+  /** 开关行：点整行等于点开关，开关自己的监听照旧生效。 */
+  private void bindSwitchRow(android.view.View root, int rowId, int switchId) {
+    android.view.View row = root.findViewById(rowId);
+    android.view.View sw = root.findViewById(switchId);
+    if (row == null || sw == null) return;
+    row.setOnClickListener(v -> sw.performClick());
+  }
+
+  private void bindRow(android.view.View root, int rowId, int chevronId, int actionId) {
+    android.view.View action = root.findViewById(actionId);
+    if (action == null) return;
+    android.view.View.OnClickListener click = v -> action.performClick();
+    android.view.View row = root.findViewById(rowId);
+    if (row != null) row.setOnClickListener(click);
+    android.view.View chevron = root.findViewById(chevronId);
+    if (chevron != null) chevron.setOnClickListener(click);
+  }
+
   private void refreshAllFilesStatus(TextView status) {
     if (status == null) return;
     boolean granted;
@@ -794,19 +943,16 @@ public final class DeviceGrantsFragment extends Fragment {
     } else {
       granted = true;
     }
-    status.setText(
+    setTextIfChanged(
+        status,
         granted
             ? com.deepseekharness.app.util.UiText.choose(
                 "已开启：可读写系统允许的共享存储；其他应用私有目录仍受系统限制",
                 "Allowed: shared storage permitted by Android; other apps' private directories remain restricted")
             : com.deepseekharness.app.util.UiText.text("未开启：仅能访问 App 私有目录；去系统设置开启后可访问全部文件"));
-    try {
-      status.setTextColor(
-          granted
-              ? getResources().getColor(R.color.primary, null)
-              : getResources().getColor(R.color.err, null));
-    } catch (Throwable ignored) {
-    }
+    // 224：说明文字统一用次要色（和设置页一致），状态交给开关和措辞表达。
+    int secondary = status.getResources().getColor(R.color.text_secondary, null);
+    if (status.getCurrentTextColor() != secondary) status.setTextColor(secondary);
   }
 
   /** 分别显示系统开关与本次实际连接；开启开关不代表服务已经绑定。 */
@@ -816,7 +962,8 @@ public final class DeviceGrantsFragment extends Fragment {
     boolean enabled = "YES".equals(st);
     boolean connected = enabled && DshaAccessibilityService.connected();
     if (enabled) {
-      status.setText(
+      setTextIfChanged(
+          status,
           connected
               ? com.deepseekharness.app.util.UiText.choose(
                   "已连接，可以在对话中使用 Computer Use。",
@@ -825,16 +972,11 @@ public final class DeviceGrantsFragment extends Fragment {
                   "开关已开启，正在等待系统连接；可重新开关服务。",
                   "Enabled, waiting for the system to connect. Try toggling the service."));
     } else if ("NO".equals(st)) {
-      status.setText(com.deepseekharness.app.util.UiText.text("未开启 · 点上方按两步完成设置"));
+      setTextIfChanged(status, com.deepseekharness.app.util.UiText.text("未开启 · 点上方按两步完成设置"));
     } else {
-      status.setText(com.deepseekharness.app.util.UiText.text("尚未连接 · 点上方查看设置步骤"));
+      setTextIfChanged(status, com.deepseekharness.app.util.UiText.text("尚未连接 · 点上方查看设置步骤"));
     }
-    try {
-      status.setTextColor(
-          getResources()
-              .getColor(
-                  connected ? R.color.primary : enabled ? R.color.text_muted : R.color.err, null));
-    } catch (Throwable ignored) {
-    }
+    int secondary = status.getResources().getColor(R.color.text_secondary, null);
+    if (status.getCurrentTextColor() != secondary) status.setTextColor(secondary);
   }
 }

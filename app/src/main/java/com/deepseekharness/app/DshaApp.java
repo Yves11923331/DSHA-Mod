@@ -149,6 +149,8 @@ public class DshaApp extends Application
     ShizukuShell.init(this);
     com.deepseekharness.app.ui.ThemeController.apply(this);
     com.deepseekharness.app.core.RuntimeTasks.initialize(this);
+    // 页面度量探针：只在设置里打开开关后才会真的遍历/写盘，默认关时零开销。
+    com.deepseekharness.app.ui.UiProbe.install(this);
     final android.content.Context runtimeApp = getApplicationContext();
     runtimeHostPorts.install(
         new com.deepseekharness.app.runtime.RuntimeHostPorts.Provider() {

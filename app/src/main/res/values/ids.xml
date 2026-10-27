@@ -3,4 +3,10 @@
     <item name="overlay_confirm_allow" type="id" />
     <item name="overlay_confirm_deny" type="id" />
     <item name="overlay_preview_button" type="id" />
+    <!-- 标记「这个 TextView 已经被自定义背景加过文字光晕」，切回默认时用它恢复。 -->
+    <item name="tag_text_shadow" type="id" />
+    <!-- 218：这棵 View 树当前是否已经按「有图/无图」处理过文字光晕，状态没变就不重复遍历。 -->
+    <item name="tag_text_shadow_protect" type="id" />
+    <!-- 218：窗口 format/背景色的上次设置值，值没变就不重复 set（避免整窗重绘）。 -->
+    <item name="tag_appearance_window" type="id" />
 </resources>

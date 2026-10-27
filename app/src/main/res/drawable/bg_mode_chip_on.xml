@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 横屏三档按钮（选中）：主色实心 + 同一圆角，文字走 button_primary_text。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/primary" />
+    <corners android:radius="@dimen/radius_small" />
+</shape>
