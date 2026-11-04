@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  实验功能：锥形烧瓶 + 液面 + 两个小气泡。
+  风格对齐 ic_ui_shield / ic_ui2_folder：20dp、24 视口、strokeWidth 1.7、
+  @color/primary 描边、透明填充，与设置页左侧导航图标同族。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 瓶口 -->
+    <path
+        android:pathData="M10.3,3.4h3.4"
+        android:strokeColor="@color/primary"
+        android:strokeWidth="1.7"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent" />
+    <!-- 瓶身：左右颈 + 斜边 + 圆角底 -->
+    <path
+        android:pathData="M10.3,3.4v5.6L5.6,18.4q-0.5,1.4 0.5,2.2h10.8q1,-0.8 0.5,-2.2L13.7,9V3.4"
+        android:strokeColor="@color/primary"
+        android:strokeWidth="1.7"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent" />
+    <!-- 液面 -->
+    <path
+        android:pathData="M7.6,14h8.8"
+        android:strokeColor="@color/primary"
+        android:strokeWidth="1.7"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent" />
+    <!-- 气泡 -->
+    <path
+        android:pathData="M10.6,17.2m-0.8,0a0.8,0.8 0 1,0 1.6,0a0.8,0.8 0 1,0 -1.6,0"
+        android:strokeColor="@color/primary"
+        android:strokeWidth="1.5"
+        android:fillColor="@android:color/transparent" />
+    <path
+        android:pathData="M13.5,16.6m-0.5,0a0.5,0.5 0 1,0 1,0a0.5,0.5 0 1,0 -1,0"
+        android:strokeColor="@color/primary"
+        android:strokeWidth="1.3"
+        android:fillColor="@android:color/transparent" />
+</vector>

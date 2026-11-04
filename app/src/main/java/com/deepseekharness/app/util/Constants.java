@@ -79,6 +79,9 @@ public final class Constants {
   /** 岛上用系统计时器显示耗时，省掉 1Hz 重绘；默认关闭。 */
   public static final String KEY_TASK_ISLAND_CHRONOMETER = "task_island_chronometer";
 
+  /** 实验功能 · 应用沙箱读取：经系统 SAF 授权，只读浏览其它应用的私有目录。默认关闭。 */
+  public static final String KEY_EXPERIMENTAL_SANDBOX_READ = "experimental_sandbox_read";
+
   /** 仅内置 DSH 网页支持画中画，默认关闭。 */
   public static final String KEY_PICTURE_IN_PICTURE = "picture_in_picture";
 

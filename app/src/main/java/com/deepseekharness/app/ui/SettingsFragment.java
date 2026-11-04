@@ -31,6 +31,8 @@ public class SettingsFragment extends Fragment {
     new TabOption(
         "设备能力授权", "Root · Shizuku · ADB · 权限", DeviceGrantsFragment::new, R.drawable.ic_ui_shield),
     new TabOption("任务状态上岛", "状态栏胶囊 · 灵动岛 · 实时活动", IslandFragment::new, R.drawable.ic_ui2_box),
+    new TabOption(
+        "实验功能", "跨应用沙箱访问 · 验证中的能力", ExperimentalFragment::new, R.drawable.ic_ui_flask),
   };
 
   private static final String STATE_SELECTED = "settings_selected";

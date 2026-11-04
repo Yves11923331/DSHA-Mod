@@ -954,6 +954,8 @@ public class MainActivity extends AppCompatActivity {
     else if (shown instanceof InstallFragment) title.setText(R.string.ui2_environment_page);
     else if (shown instanceof IslandFragment)
       title.setText(com.deepseekharness.app.util.UiText.text("任务状态上岛"));
+    else if (shown instanceof ExperimentalFragment)
+      title.setText(com.deepseekharness.app.util.UiText.text("实验功能"));
     else if (shown instanceof SettingsFragment) title.setText(R.string.app_name);
     else if (shown instanceof PluginFragment) title.setText(R.string.app_name);
     else if (shown instanceof TerminalFragment || shown instanceof PtyTerminalFragment)

@@ -336,6 +336,15 @@ public class ConfigStore {
     prefs.edit().putBoolean(Constants.KEY_TASK_ISLAND, v).apply();
   }
 
+  /** 实验功能 · 应用沙箱读取；默认关闭。 */
+  public boolean isSandboxReadEnabled() {
+    return flag(Constants.KEY_EXPERIMENTAL_SANDBOX_READ, false);
+  }
+
+  public void setSandboxReadEnabled(boolean v) {
+    prefs.edit().putBoolean(Constants.KEY_EXPERIMENTAL_SANDBOX_READ, v).apply();
+  }
+
   /** 岛上用系统计时器显示耗时；开启后状态不变就不再按秒重绘通知。 */
   public boolean isTaskIslandChronometer() {
     return flag(Constants.KEY_TASK_ISLAND_CHRONOMETER, false);
