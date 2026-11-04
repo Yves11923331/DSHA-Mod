@@ -2,6 +2,22 @@
   "schema": 1,
   "tests": [
     {
+      "path": "tools/test-diagnostic-feedback.py",
+      "stage": "fast",
+      "reason": "Executes current diagnostic feedback observers on a JVM with LiveData/UI doubles; no Android device, clipboard or SAF execution",
+      "args": [
+        "--jdk",
+        "{jdk}"
+      ],
+      "timeoutSeconds": 120,
+      "requires": [
+        "python39",
+        "jdk17"
+      ],
+      "environment": {},
+      "cli": "--jdk <JDK home>; compiles production observer bodies to Java 17"
+    },
+    {
       "path": "tools/test-android-image-wire.mjs",
       "stage": "runtime",
       "requires": [
@@ -3169,6 +3185,31 @@
       "timeoutSeconds": 60,
       "environment": {},
       "reason": "Static Actions node graph: pinned external actions, read-only reusable nodes, release gates before signing, secrets only in the sign node, write permission only in publish"
+    },
+    {
+      "path": "tools/test-release-identity.py",
+      "stage": "fast",
+      "requires": [
+        "python39"
+      ],
+      "args": [],
+      "timeoutSeconds": 60,
+      "environment": {},
+      "reason": "Dual release identity: default mod, explicit upstream, unknown -Pdsha.identity rejected without fallback; mod/upstream never share package or certificate; Gradle allowed names and identity fields match the resolver"
+    },
+    {
+      "path": "tools/test-backup-read-nonblock.py",
+      "stage": "linux",
+      "platform": [
+        "linux"
+      ],
+      "requires": [
+        "python39"
+      ],
+      "args": [],
+      "timeoutSeconds": 60,
+      "environment": {},
+      "reason": "Exact Android filesystem final-open flag expressions exercised with real Linux FIFO replacement, old blocking negative control, regular reads, directory rejection and FD balance; no phone."
     }
   ]
 }

@@ -1,7 +1,7 @@
 # 文档总索引与维护规则
 
 
-当前源码：`0.2.1-rc.3-20261104.0130-dsh0.2.1-rc.5` / build307 / `io.github.sunsetrne.dsha` / DSH-A-Su（`main`）。本版把设备能力授权页的「设备执行通道」「屏幕操作」板块改为紧凑两行条目，授权逻辑不变。本机定向单测、Lint 与源码门禁通过，用户已在真机竖屏与横屏确认。改动说明见 [build307 更新说明](releases/build307-changes.zh.md)，验证记录见 [build307 记录](releases/v0.2.1-rc.3-build307-compact-device-sections-20261104.md)。构建与发布范围以本轮 CI run 与 Release 回执为准。
+当前源码：`0.2.1-rc.5-20261104.2030-dsh0.2.1-rc.5` / build310 / `io.github.sunsetrne.dsha` / DSH-A-Su（`main`）。本版挑入协作者 ym2025szz 的三项修复：后台进程退出无法确认时保留环境保护并记录诊断；配置快照备用目录只读；桥接 APK 安装源沿用读取入口的域边界（实验性）。本机定向单测与源码门禁通过，尚未真机核对。改动说明见 [build310 更新说明](releases/build310-changes.zh.md)，验证记录见 [build310 记录](releases/v0.2.1-rc.5-build310-retained-exit-install-source-20261104.md)。构建与发布范围以本轮 CI run 与 Release 回执为准。
 
 历史版本的构建与验收记录保留在 [releases/](releases/)；各版本结论只在其对应提交与时点成立，不替代当前版本。
 

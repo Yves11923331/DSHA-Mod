@@ -1,7 +1,7 @@
 # Documentation index and maintenance rules
 
 
-Current source: `0.2.1-rc.3-20261104.0130-dsh0.2.1-rc.5` / build307 / `io.github.sunsetrne.dsha` / DSH-A-Su (`main`). This build turns the Device execution channel and Screen operation sections of the device capability page into compact two-line rows; grant logic is unchanged. Local targeted tests, Lint and source gates passed; the user confirmed it on a device in portrait and landscape. See the [build307 notes](../releases/build307-changes.en.md) and the [build307 record](../releases/v0.2.1-rc.3-build307-compact-device-sections-20261104.md). Build and publication scope follow this round's CI run and Release receipt.
+Current source: `0.2.1-rc.5-20261104.2030-dsh0.2.1-rc.5` / build310 / `io.github.sunsetrne.dsha` / DSH-A-Su (`main`). This build picks three fixes from collaborator ym2025szz: the environment guard is kept (with a diagnostic) when a background process exit cannot be confirmed; the backup configuration-snapshot catalog is read-only; bridge APK install sources follow the read endpoint's domain rules (experimental). Local targeted tests and source gates passed; not yet checked on a device. See the [build310 notes](../releases/build310-changes.en.md) and the [build310 record](../releases/v0.2.1-rc.5-build310-retained-exit-install-source-20261104.md). Build and publication scope follow this round's CI run and Release receipt.
 
 Build and acceptance records for earlier versions stay in [releases/](releases/); each version's conclusions hold only for its own commit and point in time.
 

@@ -1,4 +1,4 @@
-# DSHA 0.2.1-rc.3-20261104.0130-dsh0.2.1-rc.5 / build307
+# DSHA 0.2.1-rc.5-20261104.2030-dsh0.2.1-rc.5 / build310
 
-- Experimentale: partes «Canalis exsecutionis» et «Operationes veli» in pagina facultatum instrumenti nunc sunt ordines compacti duarum linearum; ratio permissionum et commutatorum non mutatur.
-- Ambitus probationis: solum probationes unitatum destinatae, Lint et inspectiones fontis locales; in instrumento non probatum. versionCode ad 307 auctus (in build306 fundatum). Revisio DSHA manet 0.2.1-rc.3 et DSH inclusum manet 0.2.1-rc.5.
+- Experimentale: custodia ambitus servatur et diagnosis notatur cum exitus processus in fundo confirmari non potest; catalogus subsidiarius imaginum configurationis tantum ad legendum est; fontes institutionis APK per pontem fines dominii lectionis sequuntur (emendationes a collaboratore ym2025szz sumptae).
+- Ambitus probationis: solum probationes unitatum destinatae, Lint et inspectiones fontis locales; in instrumento non probatum. versionCode ad 310 auctus (in build309 fundatum). Revisio DSHA manet 0.2.1-rc.5 et DSH inclusum manet 0.2.1-rc.5.
