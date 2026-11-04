@@ -3438,7 +3438,8 @@ public final class HttpShellService {
       if (parent != null && !parent.isDirectory() && !parent.mkdirs())
         return "ERROR: MKDIR_FAILED " + parent.getPath();
       long limit = 32L * 1024 * 1024;
-      int chunk = 1024 * 1024;
+      // 单次读上限由 SafTree 兜到 MAX_READ，分段大小必须与它一致，否则第一段就判成末段。
+      int chunk = com.deepseekharness.app.saf.SafTree.MAX_READ;
       long total = 0;
       try (java.io.OutputStream output = new java.io.FileOutputStream(target)) {
         while (total < limit) {
