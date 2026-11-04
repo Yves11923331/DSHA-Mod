@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "runtimeId": "8ba3d5cceb920eae9a71ad74d117b8b6374c3e39d0cf081ae74eaab453828ba5",
+  "runtimeId": "74d22f004cff1b3332f5a0f031c5f6a5fcec4b170f6284c8172e2ae77bb3e8ad",
   "baseVersion": "10",
   "dshVersion": "0.2.1-rc.5",
   "launcherContract": "DSHA_ARM64_V2",
@@ -322,7 +322,7 @@
     "util/BridgeCredentialFiles.java": "b6f62cadbbe8e66f71be6adea246914ec4d5f67c7bcba78b558d19b6f84862d7",
     "util/BridgePortPolicy.java": "442808cdc47b1fc72be3b0630620a8f4cfd314aeedf3bc86ca9d983275ac1888",
     "util/BridgeRoutes.java": "86df78b8fa2ccfa2f100463293185562fff0a2fc3ec3928932bc4485ba4da660",
-    "util/BuiltinPluginRegistry.java": "e1320cb22de32fd16581e25dc11cc84358ba0fa27f9976a0bccdf33ec09e50f1",
+    "util/BuiltinPluginRegistry.java": "92326165734e4a81ae9882cbbf85861ac587cf75fc7736c9650a84fc644b2768",
     "util/BundledRootfsAsset.java": "142b164efff4231ef2091ad44a92852b7b84ef7954a9d7a98a57f1f8b9b31f73",
     "util/CoalescingPoller.java": "f498844f101f989e22788daf258ee00e3385a33bcd8f3db483df485b1fd774f6",
     "util/ColdInstallPackages.java": "1ea22be5e867f6becc2a462992b88dbe565e01e93d0a35a8ef7bab5b8b4efe54",
