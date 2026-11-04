@@ -19,7 +19,6 @@ import android.provider.MediaStore;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
-import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -252,6 +251,7 @@ public class DockDisplayActivity extends AppCompatActivity {
     } catch (Throwable ignored) {
     }
     setupWindow();
+    installBackCallback();
 
     web = new PortalWebView(this);
     WebSettings s = web.getSettings();
@@ -2212,13 +2212,21 @@ public class DockDisplayActivity extends AppCompatActivity {
     super.onDestroy();
   }
 
-  /** 保留给系统/外接键盘的返回键：走和手势返回同一条路径。 */
-  @Override
-  public boolean onKeyDown(int keyCode, KeyEvent event) {
-    if (keyCode == KeyEvent.KEYCODE_BACK) {
-      goBack();
-      return true;
-    }
-    return super.onKeyDown(keyCode, event);
+  /**
+   * 返回：交给 OnBackPressedDispatcher，而不是覆写 onKeyDown。
+   *
+   * <p>Android 13+ 的预测性返回手势要求拦截走 callback 注册（GestureBackNavigation），
+   * 覆写 onKeyDown 会同时错过手势返回和外接键盘，lint 也会直接报错。
+   */
+  private void installBackCallback() {
+    getOnBackPressedDispatcher()
+        .addCallback(
+            this,
+            new OnBackPressedCallback(true) {
+              @Override
+              public void handleOnBackPressed() {
+                goBack();
+              }
+            });
   }
 }
