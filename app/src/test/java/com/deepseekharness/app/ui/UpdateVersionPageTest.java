@@ -274,7 +274,7 @@ public final class UpdateVersionPageTest {
           "English notes must resolve a localized body rather than the default Chinese resource",
           body(bundledNotes(inLanguage(controller.get(), "zh"))),
           englishBody);
-      assertTrue(shown.contains("first DSHA coexisting build"));
+      assertTrue(shown.contains("First DSHA coexisting build"));
       assertTrue(shown.contains("version code 308"));
       assertFalse(shown.contains("phone-portrait bottom navigation"));
       assertFalse(shown.contains("Raises versionCode to 306"));
