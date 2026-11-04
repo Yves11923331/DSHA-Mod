@@ -1,0 +1,5 @@
+# DSHA cross-app files bundle patch: one host row that only adds a prompt section.
+# The bridge endpoints (/app/saf/*) exist with or without this bundle.
+- insert:
+    - id: dsh-saf-guide
+      name: 'dsh-saf-guide'

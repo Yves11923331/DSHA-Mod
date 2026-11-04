@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "versionCode": 311,
-  "versionName": "dsha.v2",
+  "versionCode": 312,
+  "versionName": "dsha.v3",
   "packageName": "dsga.mod",
   "certificateSha256": "c035d2b2b43759a296868b4b5378283f015d1a49ca47b560ee5b35886d18139c",
   "schemes": [

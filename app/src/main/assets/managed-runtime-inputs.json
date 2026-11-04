@@ -486,6 +486,26 @@
       "asset": "builtin-plugins/dsh-fs-search-scope/lib/index.js",
       "target": "root/dsha-fs-search-scope/lib/index.js",
       "executable": false
+    },
+    {
+      "asset": "builtin-plugins/dsh-saf-guide/cordis.patch.yml",
+      "target": "root/dsha-saf-guide/cordis.patch.yml",
+      "executable": false
+    },
+    {
+      "asset": "builtin-plugins/dsh-saf-guide/package.json",
+      "target": "root/dsha-saf-guide/package.json",
+      "executable": false
+    },
+    {
+      "asset": "builtin-plugins/dsh-saf-guide/lib/bridge-port.cjs",
+      "target": "root/dsha-saf-guide/lib/bridge-port.cjs",
+      "executable": false
+    },
+    {
+      "asset": "builtin-plugins/dsh-saf-guide/lib/index.js",
+      "target": "root/dsha-saf-guide/lib/index.js",
+      "executable": false
     }
   ],
   "assetFiles": [

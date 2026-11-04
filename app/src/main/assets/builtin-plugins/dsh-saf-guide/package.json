@@ -1,0 +1,18 @@
+{
+  "name": "dsh-saf-guide",
+  "description": "DSHA builtin guide plugin: tells the agent that user-granted SAF trees are reachable through the bridge /app/saf/* endpoints, and how to find the port. Endpoints, permissions and limits live in HttpShellService; disabling this bundle only removes the hint.",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT"
+}
