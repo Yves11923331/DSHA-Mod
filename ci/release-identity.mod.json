@@ -1,16 +1,19 @@
 {
   "schema": 1,
   "identity": "mod",
-  "packageName": "io.github.sunsetrne.dsha",
-  "certificateSha256": "a4b0413c67fa46dd30dc7e2bce3ad56151ed8bfde2a3315fff685baf786b5d5d",
-  "schemes": ["v1", "v2", "v3"],
-  "appName": "DSH-A-Su",
-  "keyAlias": "dsha-a-su",
+  "packageName": "dsga.mod",
+  "certificateSha256": "c035d2b2b43759a296868b4b5378283f015d1a49ca47b560ee5b35886d18139c",
+  "schemes": [
+    "v2",
+    "v3"
+  ],
+  "appName": "DSHA",
+  "keyAlias": "dsha-mod",
   "testSuffix": ".test",
-  "tagPrefix": "dsha-a-su-build",
-  "apkPrefix": "dsha-a-su",
-  "repository": "SunsetRNE/DSHA-Sunset-mod",
-  "ref": "refs/heads/main",
+  "tagPrefix": "dsga-mod-build",
+  "apkPrefix": "dsga-mod",
+  "repository": "Yves11923331/DSHA-Mod",
+  "ref": "refs/heads/coexist",
   "privateRepository": false,
-  "workflow": ".github/workflows/release-production.yml"
+  "workflow": ".github/workflows/ci-package.yml"
 }

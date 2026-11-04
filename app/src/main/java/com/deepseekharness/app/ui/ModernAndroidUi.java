@@ -16,11 +16,34 @@ import com.deepseekharness.app.R;
 public final class ModernAndroidUi implements Application.ActivityLifecycleCallbacks {
   @Override
   public void onActivityPostCreated(Activity activity, Bundle saved) {
+    applyKeepScreenOn(activity);
     applyInsets(activity);
   }
 
+  /**
+   * 屏幕常亮（06 模块）：按设置给当前窗口挂/摘 FLAG_KEEP_SCREEN_ON。
+   *
+   * <p>放在 ActivityLifecycleCallbacks 里而不是各页面自己写：网页在 WebPreviewActivity、
+   * 终端在 TerminalActivity、横屏在 DockDisplayActivity，各自都是独立窗口，逐页补一定会漏。
+   */
+  private void applyKeepScreenOn(Activity activity) {
+    try {
+      boolean on = new com.deepseekharness.app.core.ConfigStore(activity).isKeepScreenOn();
+      activity
+          .getWindow()
+          .setFlags(
+              on ? android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON : 0,
+              android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    } catch (Throwable ignored) {
+      // 设置读不到不影响页面
+    }
+  }
+
   private void applyInsets(Activity activity) {
-    if (activity instanceof WebFullscreenUi.Host || activity instanceof TerminalActivity) return;
+    if (activity instanceof WebFullscreenUi.Host
+        || activity instanceof TerminalActivity
+        || activity instanceof LandscapeProbeActivity
+        || activity instanceof DockDisplayActivity) return;
     View content = activity.findViewById(android.R.id.content);
     if (content == null) return;
     if (android.os.Build.VERSION.SDK_INT >= 29) content.setForceDarkAllowed(false);
@@ -74,7 +97,9 @@ public final class ModernAndroidUi implements Application.ActivityLifecycleCallb
   public void onActivityStarted(Activity activity) {}
 
   @Override
-  public void onActivityResumed(Activity activity) {}
+  public void onActivityResumed(Activity activity) {
+    applyKeepScreenOn(activity);
+  }
 
   @Override
   public void onActivityPaused(Activity activity) {}

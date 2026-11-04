@@ -123,6 +123,15 @@ public class LaunchFragment extends Fragment {
     // v5 快捷行与日志工具：终端走 MainActivity 的既有门禁，环境行复用恢复入口。
     v.findViewById(R.id.launch_terminal_row).setOnClickListener(x -> openLocalTerminal());
     v.findViewById(R.id.launch_environment_row).setOnClickListener(x -> openEnvironment());
+    // 横屏 DSH 入口：点按进真 Dock（16:9 虚拟屏），长按进机制探针（安全区对照用）。
+    TextView landscapeRow = v.findViewById(R.id.launch_landscape_row);
+    landscapeRow.setText(UiText.choose("横屏 DSH", "Landscape DSH"));
+    landscapeRow.setOnClickListener(x -> enterLandscape());
+    landscapeRow.setOnLongClickListener(
+        x -> {
+          startActivity(new Intent(requireContext(), LandscapeProbeActivity.class));
+          return true;
+        });
     v.findViewById(R.id.launch_copy_logs).setOnClickListener(x -> copyLogs());
     v.findViewById(R.id.launch_copy_logs)
         .setContentDescription(UiText.choose("复制完整启动日志", "Copy the full startup log"));
@@ -281,6 +290,32 @@ public class LaunchFragment extends Fragment {
     // Main 的入口检查可能仍挂起恢复页视图；先保留明确请求，创建视图后再等待鉴权。
     pendingAutoEnter = true;
     if (controller != null && getView() != null) ui.post(refreshState);
+  }
+
+  /** 打开横屏 Dock（16:9 虚拟屏）进入 dsh WebUI；Web 未就绪时先提示。 */
+  private void enterLandscape() {
+    final Activity activity = getActivity();
+    if (activity == null || !isResumed() || activity.isFinishing() || activity.isDestroyed())
+      return;
+    String url = webEntryUrl();
+    if (url.isEmpty()) {
+      if (getView() != null) {
+        ((TextView) getView().findViewById(R.id.launch_status))
+            .setText(
+                com.deepseekharness.app.util.UiText.text("先点「启动」，等鉴权链接就绪后再进入横屏"));
+      }
+      return;
+    }
+    try {
+      startActivity(DockDisplayActivity.intent(activity, url));
+    } catch (RuntimeException error) {
+      if (getView() != null) {
+        ((TextView) getView().findViewById(R.id.launch_status))
+            .setText(
+                com.deepseekharness.app.util.UiText.format(
+                    "无法打开横屏（%s）", error.getClass().getSimpleName()));
+      }
+    }
   }
 
   /** 打开 WebPreviewActivity 进入 dsh WebUI。 */

@@ -1,4 +1,6 @@
-# DSHA 0.2.1-rc.5-20261104.2030-dsh0.2.1-rc.5 / build310
+# DSHA dsha.v2 / build311
 
-- Experimental: a proteção do ambiente mantém-se, com registo de diagnóstico, quando não é possível confirmar a saída de um processo em segundo plano; o catálogo de reserva dos instantâneos de configuração fica só de leitura; as origens de instalação de APK pela ponte seguem os limites de domínio da leitura (correções escolhidas do colaborador ym2025szz).
-- Âmbito da verificação: apenas testes unitários direcionados, Lint e verificações de código locais; não verificado num dispositivo. versionCode elevado para 310 (com base no build309). A revisão DSHA mantém-se 0.2.1-rc.5 e o DSH incluído mantém-se 0.2.1-rc.5.
+- Configurações · Autorizações do dispositivo ganha « Arquivos entre apps »: autorize pasta por pasta pelo seletor de documentos do sistema, ative ou desative a escrita do assistente por pasta e revogue quando quiser.
+- Novos endpoints `/app/saf/*`: listar, ler (texto, base64, por faixas), gravar texto pequeno, trazer um arquivo para o contêiner, enviar o arquivo de volta, criar pasta e excluir com confirmação. Apenas ids de pastas autorizadas são aceitos.
+- Base atualizada para o build310: identidade de publicação alternável, correções de notificações da ilha, correções de fronteira em backup e origem de instalação pelo bridge; o Dock em paisagem, a tela sempre ligada e os ícones de inverno são mantidos.
+- Escopo de verificação: compilação offline e checagens de código locais aprovadas; a validação no aparelho (autorização, leitura/escrita e revogação) vem após a compilação na nuvem. versionCode 311 (base build310), versionName dsha.v2, pacote dsga.mod.

@@ -1,4 +1,6 @@
-# DSHA 0.2.1-rc.5-20261104.2030-dsh0.2.1-rc.5 / build310
+# DSHA dsha.v2 / build311
 
-- Experimentale: custodia ambitus servatur et diagnosis notatur cum exitus processus in fundo confirmari non potest; catalogus subsidiarius imaginum configurationis tantum ad legendum est; fontes institutionis APK per pontem fines dominii lectionis sequuntur (emendationes a collaboratore ym2025szz sumptae).
-- Ambitus probationis: solum probationes unitatum destinatae, Lint et inspectiones fontis locales; in instrumento non probatum. versionCode ad 310 auctus (in build309 fundatum). Revisio DSHA manet 0.2.1-rc.5 et DSH inclusum manet 0.2.1-rc.5.
+- Optiones · Auctoritates instrumenti novam sectionem «Fasciculi inter applicationes» accipiunt: per selectorem documentorum systematis singulas carpetas permitte, scriptionem adiutoris pro singulis carpetis commuta, et quandoque revoca.
+- Nova puncta pontis `/app/saf/*`: enumerare, legere (textum, base64, per partes), textum brevem scribere, fasciculum in continens trahere, fasciculum e continente remittere, carpetam creare et confirmata deletione delere. Solum identitates carpetarum permissarum accipiuntur.
+- Basis ad build310 superiorem reducta: identitas editionis mutabilis, correctiones notificationum insulae, correctiones limitum pro subsidiariis et fonte institutionis per pontem; modificationes Dock transversi, lucis permanentis et iconum hibernarum retinentur.
+- Ambitus probationis: compilatio localis sine rete et inspectiones fontis perfectae sunt; probatio in instrumento (permissio, lectio/scriptio, revocatio) post constructionem nubis sequitur. versionCode 311 (ex build310), versionName dsha.v2, sarcina dsga.mod.

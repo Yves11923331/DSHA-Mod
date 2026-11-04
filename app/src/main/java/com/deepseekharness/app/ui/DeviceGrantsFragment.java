@@ -263,6 +263,14 @@ public final class DeviceGrantsFragment extends Fragment {
           } else startActivity(new Intent(ctx, AdbPairActivity.class));
         });
     view.findViewById(R.id.config_all_files).setOnClickListener(button -> openAllFilesAccess(ctx));
+    // 跨应用文件访问：授权管理在子页，行上只报数量与失效数。
+    ((TextView) view.findViewById(R.id.config_saf_access_title))
+        .setText(com.deepseekharness.app.util.UiText.choose("跨应用文件访问", "Cross-app files"));
+    view.findViewById(R.id.config_saf_access)
+        .setOnClickListener(
+            button ->
+                SettingsPanes.open(
+                    this, new com.deepseekharness.app.ui.SafAccessFragment(), "saf-access"));
     view.findViewById(R.id.config_battery_opt).setOnClickListener(button -> openBatteryOpt(ctx));
     sms = view.findViewById(R.id.device_sms);
     smsStatus = view.findViewById(R.id.device_sms_status);
@@ -1767,6 +1775,34 @@ public final class DeviceGrantsFragment extends Fragment {
     }
   }
 
+  /** 跨应用文件访问：副标题只报数量；具体目录、可写开关与撤销都在子页。 */
+  private void refreshSafAccessStatus(TextView view) {
+    if (view == null) return;
+    var grants = com.deepseekharness.app.saf.SafGrants.list(requireContext());
+    if (grants.isEmpty()) {
+      view.setText(
+          com.deepseekharness.app.util.UiText.choose(
+              "未授权：选一个应用文件夹，助手即可读写",
+              "Not granted: pick a folder for the assistant"));
+      return;
+    }
+    int valid = 0, writable = 0, stale = 0;
+    for (var grant : grants) {
+      if (!grant.valid) {
+        stale++;
+        continue;
+      }
+      valid++;
+      if (grant.writable) writable++;
+    }
+    view.setText(
+        stale > 0
+            ? com.deepseekharness.app.util.UiText.format(
+                "已授权 %d 个，%d 个已失效：点此处理", valid, stale)
+            : com.deepseekharness.app.util.UiText.format(
+                "已授权 %d 个文件夹（可写 %d 个）：点此管理", valid, writable));
+  }
+
   @Override
   public void onResume() {
     super.onResume();
@@ -1780,6 +1816,7 @@ public final class DeviceGrantsFragment extends Fragment {
     refreshExternalDeviceStatus();
     if (page != null) {
       refreshAllFilesStatus(page.findViewById(R.id.config_all_files_status));
+      refreshSafAccessStatus(page.findViewById(R.id.config_saf_access_status));
       refreshA11yStatus(page.findViewById(R.id.config_a11y_status));
       refreshAdbStatus(page.findViewById(R.id.config_adb_status));
     }

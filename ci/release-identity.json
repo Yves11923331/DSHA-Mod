@@ -1,8 +1,11 @@
 {
   "schema": 1,
-  "versionCode": 310,
-  "versionName": "0.2.1-rc.5-20261104.2030-dsh0.2.1-rc.5",
-  "packageName": "io.github.sunsetrne.dsha",
-  "certificateSha256": "a4b0413c67fa46dd30dc7e2bce3ad56151ed8bfde2a3315fff685baf786b5d5d",
-  "schemes": ["v1", "v2", "v3"]
+  "versionCode": 311,
+  "versionName": "dsha.v2",
+  "packageName": "dsga.mod",
+  "certificateSha256": "c035d2b2b43759a296868b4b5378283f015d1a49ca47b560ee5b35886d18139c",
+  "schemes": [
+    "v2",
+    "v3"
+  ]
 }

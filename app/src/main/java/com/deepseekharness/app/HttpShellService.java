@@ -274,6 +274,15 @@ public final class HttpShellService {
     routes.put(BridgeRoutes.Route.TASK_ACK, (s, r) -> s.appTask("ack", r.param("payload", "")));
     routes.put(BridgeRoutes.Route.TOAST, (s, r) -> s.appToast(r.path));
     routes.put(BridgeRoutes.Route.READ_FILE, (s, r) -> s.appReadFile(r.path));
+    routes.put(BridgeRoutes.Route.SAF_TREES, (s, r) -> s.appSafTrees());
+    routes.put(BridgeRoutes.Route.SAF_LS, (s, r) -> s.appSafList(r));
+    routes.put(BridgeRoutes.Route.SAF_STAT, (s, r) -> s.appSafStat(r));
+    routes.put(BridgeRoutes.Route.SAF_READ, (s, r) -> s.appSafRead(r));
+    routes.put(BridgeRoutes.Route.SAF_WRITE, (s, r) -> s.appSafWrite(r));
+    routes.put(BridgeRoutes.Route.SAF_MKDIR, (s, r) -> s.appSafMkdir(r));
+    routes.put(BridgeRoutes.Route.SAF_RM, (s, r) -> s.appSafRemove(r));
+    routes.put(BridgeRoutes.Route.SAF_PULL, (s, r) -> s.appSafPull(r));
+    routes.put(BridgeRoutes.Route.SAF_PUSH, (s, r) -> s.appSafPush(r));
     routes.put(BridgeRoutes.Route.HEALTH, (s, r) -> "OK");
     routes.put(BridgeRoutes.Route.UI, (s, r) -> s.appUi(r.path, r.scope));
     routes.put(BridgeRoutes.Route.SENSE, (s, r) -> s.appSense(r.path, r.scope));
@@ -2268,7 +2277,7 @@ public final class HttpShellService {
             "\n== 当前对话手机任务 ==\n用户明确要求手机操作时，先 /app/ui/task-begin；包括只启动应用的任务。每次请求携带真实工具环境的 taskSessionId=$DSH_PHONE_SESSION_ID 与 turnId=$DSH_PHONE_TURN_ID；不猜测或复制其它会话身份。begin 只显示当前对话状态和建立任务围栏，不授予系统权限、不自动批准动作。需要读屏再 dump/tree/screenshot；任务窗口会先隐藏，窗口可见状态变化后必须重新观察。成功 begin 后，任务完成或放弃时在 finally 收尾中调用一次 /app/ui/task-end，完成围栏；正常完成会关闭任务窗口，但用户在本机展开并暂停的任务会保留控制窗供明确继续或停止，不取消模型对话；本轮结束后不再重新 begin。完成收尾不证明 UNKNOWN 动作已成功或已退出，不自动重放。普通讨论、引用或翻译不开始手机任务。\n",
             "\n== Phone task in the current conversation ==\nWhen the user explicitly requests phone actions, call /app/ui/task-begin first, including app-launch-only tasks. Every request carries the real tool environment taskSessionId=$DSH_PHONE_SESSION_ID and turnId=$DSH_PHONE_TURN_ID; never invent or copy another conversation identity. Begin displays this conversation state and establishes the task boundary; it grants no system permission or automatic approval. Read dump/tree/screenshot when observation is needed; the task window is hidden first, and any visibility change requires a fresh observation. After successful begin, call /app/ui/task-end once in final cleanup when the task is completed or abandoned. End finishes this task and normally closes its window without cancelling the model conversation; if the user expanded and paused the task locally, the control window remains for an explicit Continue or Stop; do not begin again in the same finished turn. Cleanup does not prove an UNKNOWN action succeeded or exited; never replay automatically. Discussion, quotations and translations do not start phone tasks.\n");
     return com.deepseekharness.app.util.UiText.format(
-                "DSHA 3090 桥端点清单（BRIDGE_PROTOCOL=%s）\n凭据由宿主写入 /root/.dsh/.bridge_headers；使用 curl -H @/root/.dsh/.bridge_headers，不把 token 写进 URL 或命令参数。\n带中文/空格的参数一律用 -G --data-urlencode，别手写 URL 编码。\n\n== 屏幕操作（无障碍服务，不需要 ADB/Shizuku）==\n坐标触控仅限物理display 0：先 /app/ui/screenshot，返回 coordinatesAvailable:true 且含 observationId 才可用；dump/tree不签发像素凭据。ID限最新截图、30秒、一次手势；画面/窗口/遮挡/代次变化即拒绝。\n文字/节点动作返回 SCREEN_ACTION_SUBMITTED、actionAccepted:true、effectVerified:false 只代表Android接受动作，不证明WebView DOM已变；须重新观察，后续坐标操作须显式取新截图，禁止隐式回退或重放UNKNOWN。\n读屏  curl -s -H @/root/.dsh/.bridge_headers \"127.0.0.1:3090/app/ui/dump\"\n      → 每行语义节点附bounds；boundsHaveArea:false没有可触摸面积，不能取中心点触控\n点按  curl -s -G 127.0.0.1:3090/app/ui/tap --data-urlencode \"text=设置\" -H @/root/.dsh/.bridge_headers\n      → 优先按文字点：控件位置随滚动/动画变，文字不变。坐标触控须先截图取得 observationId（dump不签发），再用 ?observationId=截图返回的ID&x=&y=\n语义滚动 先 /app/ui/tree 或 dump 取 treeId、nodeId 和 supportedActions；/app/ui/node?treeId=返回的树ID&nodeId=返回的节点ID&action=scroll_forward（或 scroll_backward）。只调用节点列出的动作，一次请求后取新树；无障碍接受不代表实际已滚动，不自动改用滑动或重放未知结果。\n输入  curl -s -G 127.0.0.1:3090/app/ui/input --data-urlencode \"text=内容\" -H @/root/.dsh/.bridge_headers\n      → 填到当前焦点框；没有焦点先 tap 一下输入框\n按键  /app/ui/key?name=back  （back/home/recents/notifications/quicksettings/lock）\n长按  /app/ui/tap?observationId=截图返回的ID&x=540&y=1200&gesture=long_press&ms=600\n双击  /app/ui/tap?observationId=截图返回的ID&x=540&y=1200&gesture=double_tap（同一Gesture/一次许可）\n当前只支持单指触控；多指/缩放不支持。\n滑动  /app/ui/swipe?observationId=截图返回的ID&x1=500&y1=1500&x2=500&y2=500&ms=300\n截屏  /app/ui/screenshot   → 存 PNG 到应用截图目录并返回路径（不回 base64）\n节奏：每次点按/输入后先 dump 再决定下一步，别凭记忆连点。\n\n== 独立虚拟屏（Android 11+） ==\n/app/vscreen/create?orientation=portrait  创建虚拟屏；也可选 landscape\n/app/vscreen/status  查询 coreInstance、generation、displayId 和状态\n$CORE 取自 create/status 返回的 coreInstance；$GEN 取自当前 see 或 tree 的 generation，$FRAME 取自该 see 的 frameSeq，$NODE 取自该 tree 的 nodeId。不要混用不同 Core 或不同观察的身份。\n/app/vscreen/launch?coreInstance=$CORE&package=com.example.app  启动已安装应用；此端点不接受 generation\n/app/vscreen/see?coreInstance=$CORE  获取新画面及 generation、frameSeq\n空屏：新建的虚拟屏可能没有窗口；see 失败且 nextAction=LAUNCH_APP_FIRST（VSCREEN_NO_WINDOW）时先 launch，WAIT_AND_SEE_AGAIN（FRAME_PENDING）稍等再 see，REPORT_TO_USER（FRAME_STALLED）告诉用户。只读失败可安全重看，legacyError 保留 FRAME_NOT_READY。\n/app/vscreen/tap?coreInstance=$CORE&generation=$GEN&frameSeq=$FRAME&x=10&y=20\ntap/swipe/touch/type/key 需要 coreInstance、generation 和最新 see 的 frameSeq；坐标按显示尺寸换算。\n/app/vscreen/tree?coreInstance=$CORE  获取当前树及 nodeId、generation\n/app/vscreen/node?coreInstance=$CORE&generation=$GEN&nodeId=$NODE&action=click  语义节点动作；不要求 frameSeq，使用新树中的节点\n/app/vscreen/editor?coreInstance=$CORE&generation=$GEN  读取当前输入框；edit/submit 还需 editorId，edit 需 text；均不要求 frameSeq\nanchor 使用原 see 的 coreInstance、generation、frameSeq、observationId 和全尺寸整数 x/y；anchored-click 使用同一组身份及 anchorId。\n/app/vscreen/close?coreInstance=$CORE  关闭对应 Core；无运行中或待清理的 Core 时可省略身份\n应用启动或动作后重新观察；UNKNOWN 不自动重放。\n\n== 设备与应用 ==\n/app/device                     机型/系统/电量/网络/屏幕/存储/内存\n/app/apps                       全部已装应用，分用户应用与系统应用；可加 q/limit/user=1 筛选显示\n/app/launch?pkg=com.tencent.mm  启动应用\n/app/clip                       读剪贴板（需 App 在前台，系统限制）\n/app/clip + text=…              写剪贴板\n/app/readfile?path=/…          读取容器路径或当前用户共享存储的目录或文本（最多 256 KiB）；受 Android 权限限制，凭据区及跨域符号链接不可读；format=image 返回 8 MiB 内静态 PNG/JPEG/WebP 数据，动图及 GIF 不支持；/proc/self/status 单独提供当前桥进程诊断\n设备文件写入请走下方受保护的设备 shell；普通 Download 文件可操作，DCIM/Pictures/Android/data/obb 只读。\n\n== 与用户交互 ==\n/app/ask?options=继续|取消 + q=…  弹窗阻塞等回答（最多三个选项）\n/app/notify?title=… + text=…      通知栏\n/app/toast + text=…               App 内提示\n/app/vibrate?ms=300               震动（长任务跑完叫醒用户）\n/app/share（text= 或 path=）      分享到其它应用\n/app/open?url=https://…           打开链接\n/app/export?path=/root/report.md  把产物交给用户 → 落 Download/DSHA；凭据区不可导出\n建议：需要用户拍板用 /app/ask 而不是干等；长任务结束用 notify 或 vibrate 叫人；\n产出报告用 /app/export，别只留在容器里。\n\n== 传感器与位置（默认关闭，需用户在配置页勾选）==\n/app/location（加 fresh=1 强制重新定位，可能等数秒）\n/app/sensors 列表 · /app/sensor?name=light 读值\n（light 环境光 lux / accel / gyro / magnet / pressure / proximity /\n gravity / rotation 姿态四元数 / steps 开机后步数）\n/app/torch?on=1 手电\n这三类返回 DISABLED（用户没开该能力）或 NO_PERMISSION（没授系统权限）时，\n照原话告诉用户去哪开，不要重试 —— 重试不会让开关自己变。\n\n== 元信息 ==\n/app/version                          桥协议版本 + App 版本（特性检测用）\n/app/help                             本清单\n/app/entry-target                     读取桌面图标启动后进入的页面；加 set=main 或 set=web 修改（仅影响下次从桌面图标启动）\n\n== 插件状态 ==\n/app/plugins                          读回上次上报的加载状态\n/app/plugins?loaded=a,b&failed=c      上报（插件侧用）\n\n== 设备 shell（自动选择 root / Shizuku / ADB）==\n/root/dsh-bin/adb-shell \"命令\"        用 id 核验实际身份\n包装命令不存在时：python3 /root/.dsh/adb-shell.py \"命令\"\n短信只允许当前 Android 用户的 content query --uri content://sms，默认关闭；设置 → 设备能力授权可开启或撤销。\n短信预授权可能返回正文及验证码；不允许发送、修改或删除，Android 仍可拒绝访问。Shizuku 不执行此敏感查询。\n仅执行已识别的单条命令；允许读取各目录和明确路径的普通文件操作。禁止脚本、管道、重定向、未知命令。\n根目录及系统目录只读；禁止块设备/分区、SELinux、系统设置写入、挂载和刷机操作。\n结束进程前自动刷新全量用户/系统应用清单；普通用户应用直接结束，系统应用与关键进程拦截。\n按完整包名调用 am force-stop / killall / pkill -x；kill 正数 PID 会核对 UID 后按包名停止。\n策略拦截返回 [POLICY_BLOCKED]/126；root 和旧确认开关不能放行。不可用其它解释器或 UI 绕过。\n报连不上/未配对：先看上面的 App 层接口能不能办成；确实必须 shell 才请用户到\n设置 → 设备能力授权中连接可用通道，别反复试同一条命令。\n不要用 /root/dsh-bin/adb 或裸 adb —— 那是守卫包装脚本，会失败。\n\n== root（--su）==\n已启用并经 root 管理器授权的 su 可直接执行，无需 ADB 配对；其次使用 Shizuku，再使用 ADB。\n--su 仅在明确需要 root 时使用，须先在设备能力授权页允许；同一设备保护策略始终生效。\n[EXECUTION_UNKNOWN] 表示命令可能已执行，先核对实际状态，不能切换通道或自动重放。\n",
+                "DSHA 3090 桥端点清单（BRIDGE_PROTOCOL=%s）\n凭据由宿主写入 /root/.dsh/.bridge_headers；使用 curl -H @/root/.dsh/.bridge_headers，不把 token 写进 URL 或命令参数。\n带中文/空格的参数一律用 -G --data-urlencode，别手写 URL 编码。\n\n== 屏幕操作（无障碍服务，不需要 ADB/Shizuku）==\n坐标触控仅限物理display 0：先 /app/ui/screenshot，返回 coordinatesAvailable:true 且含 observationId 才可用；dump/tree不签发像素凭据。ID限最新截图、30秒、一次手势；画面/窗口/遮挡/代次变化即拒绝。\n文字/节点动作返回 SCREEN_ACTION_SUBMITTED、actionAccepted:true、effectVerified:false 只代表Android接受动作，不证明WebView DOM已变；须重新观察，后续坐标操作须显式取新截图，禁止隐式回退或重放UNKNOWN。\n读屏  curl -s -H @/root/.dsh/.bridge_headers \"127.0.0.1:3090/app/ui/dump\"\n      → 每行语义节点附bounds；boundsHaveArea:false没有可触摸面积，不能取中心点触控\n点按  curl -s -G 127.0.0.1:3090/app/ui/tap --data-urlencode \"text=设置\" -H @/root/.dsh/.bridge_headers\n      → 优先按文字点：控件位置随滚动/动画变，文字不变。坐标触控须先截图取得 observationId（dump不签发），再用 ?observationId=截图返回的ID&x=&y=\n语义滚动 先 /app/ui/tree 或 dump 取 treeId、nodeId 和 supportedActions；/app/ui/node?treeId=返回的树ID&nodeId=返回的节点ID&action=scroll_forward（或 scroll_backward）。只调用节点列出的动作，一次请求后取新树；无障碍接受不代表实际已滚动，不自动改用滑动或重放未知结果。\n输入  curl -s -G 127.0.0.1:3090/app/ui/input --data-urlencode \"text=内容\" -H @/root/.dsh/.bridge_headers\n      → 填到当前焦点框；没有焦点先 tap 一下输入框\n按键  /app/ui/key?name=back  （back/home/recents/notifications/quicksettings/lock）\n长按  /app/ui/tap?observationId=截图返回的ID&x=540&y=1200&gesture=long_press&ms=600\n双击  /app/ui/tap?observationId=截图返回的ID&x=540&y=1200&gesture=double_tap（同一Gesture/一次许可）\n当前只支持单指触控；多指/缩放不支持。\n滑动  /app/ui/swipe?observationId=截图返回的ID&x1=500&y1=1500&x2=500&y2=500&ms=300\n截屏  /app/ui/screenshot   → 存 PNG 到应用截图目录并返回路径（不回 base64）\n节奏：每次点按/输入后先 dump 再决定下一步，别凭记忆连点。\n\n== 独立虚拟屏（Android 11+） ==\n/app/vscreen/create?orientation=portrait  创建虚拟屏；也可选 landscape\n/app/vscreen/status  查询 coreInstance、generation、displayId 和状态\n$CORE 取自 create/status 返回的 coreInstance；$GEN 取自当前 see 或 tree 的 generation，$FRAME 取自该 see 的 frameSeq，$NODE 取自该 tree 的 nodeId。不要混用不同 Core 或不同观察的身份。\n/app/vscreen/launch?coreInstance=$CORE&package=com.example.app  启动已安装应用；此端点不接受 generation\n/app/vscreen/see?coreInstance=$CORE  获取新画面及 generation、frameSeq\n空屏：新建的虚拟屏可能没有窗口；see 失败且 nextAction=LAUNCH_APP_FIRST（VSCREEN_NO_WINDOW）时先 launch，WAIT_AND_SEE_AGAIN（FRAME_PENDING）稍等再 see，REPORT_TO_USER（FRAME_STALLED）告诉用户。只读失败可安全重看，legacyError 保留 FRAME_NOT_READY。\n/app/vscreen/tap?coreInstance=$CORE&generation=$GEN&frameSeq=$FRAME&x=10&y=20\ntap/swipe/touch/type/key 需要 coreInstance、generation 和最新 see 的 frameSeq；坐标按显示尺寸换算。\n/app/vscreen/tree?coreInstance=$CORE  获取当前树及 nodeId、generation\n/app/vscreen/node?coreInstance=$CORE&generation=$GEN&nodeId=$NODE&action=click  语义节点动作；不要求 frameSeq，使用新树中的节点\n/app/vscreen/editor?coreInstance=$CORE&generation=$GEN  读取当前输入框；edit/submit 还需 editorId，edit 需 text；均不要求 frameSeq\nanchor 使用原 see 的 coreInstance、generation、frameSeq、observationId 和全尺寸整数 x/y；anchored-click 使用同一组身份及 anchorId。\n/app/vscreen/close?coreInstance=$CORE  关闭对应 Core；无运行中或待清理的 Core 时可省略身份\n应用启动或动作后重新观察；UNKNOWN 不自动重放。\n\n== 设备与应用 ==\n/app/device                     机型/系统/电量/网络/屏幕/存储/内存\n/app/apps                       全部已装应用，分用户应用与系统应用；可加 q/limit/user=1 筛选显示\n/app/launch?pkg=com.tencent.mm  启动应用\n/app/clip                       读剪贴板（需 App 在前台，系统限制）\n/app/clip + text=…              写剪贴板\n/app/readfile?path=/…          读取容器路径或当前用户共享存储的目录或文本（最多 256 KiB）；受 Android 权限限制，凭据区及跨域符号链接不可读；format=image 返回 8 MiB 内静态 PNG/JPEG/WebP 数据，动图及 GIF 不支持；/proc/self/status 单独提供当前桥进程诊断\n设备文件写入请走下方受保护的设备 shell；普通 Download 文件可操作，DCIM/Pictures/Android/data/obb 只读。\n\n== 与用户交互 ==\n/app/ask?options=继续|取消 + q=…  弹窗阻塞等回答（最多三个选项）\n/app/notify?title=… + text=…      通知栏\n/app/toast + text=…               App 内提示\n/app/vibrate?ms=300               震动（长任务跑完叫醒用户）\n/app/share（text= 或 path=）      分享到其它应用\n/app/open?url=https://…           打开链接\n/app/export?path=/root/report.md  把产物交给用户 → 落 Download/DSHA；凭据区不可导出\n建议：需要用户拍板用 /app/ask 而不是干等；长任务结束用 notify 或 vibrate 叫人；\n产出报告用 /app/export，别只留在容器里。\n\n== 传感器与位置（默认关闭，需用户在配置页勾选）==\n/app/location（加 fresh=1 强制重新定位，可能等数秒）\n/app/sensors 列表 · /app/sensor?name=light 读值\n（light 环境光 lux / accel / gyro / magnet / pressure / proximity /\n gravity / rotation 姿态四元数 / steps 开机后步数）\n/app/torch?on=1 手电\n这三类返回 DISABLED（用户没开该能力）或 NO_PERMISSION（没授系统权限）时，\n照原话告诉用户去哪开，不要重试 —— 重试不会让开关自己变。\n\n== 跨应用文件访问（SAF；用户先到 设置→设备能力授权→跨应用文件访问 授权）==\n/app/saf/trees   已授权目录：id / app / label / writable / valid\n/app/saf/ls?tree=$ID&path=/files&limit=200\n/app/saf/stat?tree=$ID&path=/files/x.db\n/app/saf/read?tree=$ID&path=/files/x.txt&max=262144   文本原样返回；二进制加 base64=1\n/app/saf/write?tree=$ID&path=/files/x.txt&text=…      小文本直接写（≤64 KiB）\n/app/saf/push?tree=$ID&path=/files/x.db&src=/root/x.db    容器文件→目标（≤32 MiB）\n/app/saf/pull?tree=$ID&path=/files/x.db&dest=/root/x.db   目标→容器文件（≤32 MiB）\n/app/saf/mkdir?tree=$ID&path=/files/new   ·   /app/saf/rm?tree=$ID&path=/files/x.txt&confirm=1\n只认 /app/saf/trees 里的 id，不接受直接给 URI/authority。写与删要求该目录在设置里开着「允许写入」，否则 READ_ONLY。\n目标应用没启动时可能 PROVIDER_UNAVAILABLE：先请用户打开那个应用再试。授权失效返回 PERMISSION_DENIED，让用户回设置页移除后重选。\n路径一律相对授权根；不许 ..；大文件先 pull 到容器改完再 push，别直接手改二进制。\n\n== 元信息 ==\n/app/version                          桥协议版本 + App 版本（特性检测用）\n/app/help                             本清单\n/app/entry-target                     读取桌面图标启动后进入的页面；加 set=main 或 set=web 修改（仅影响下次从桌面图标启动）\n\n== 插件状态 ==\n/app/plugins                          读回上次上报的加载状态\n/app/plugins?loaded=a,b&failed=c      上报（插件侧用）\n\n== 设备 shell（自动选择 root / Shizuku / ADB）==\n/root/dsh-bin/adb-shell \"命令\"        用 id 核验实际身份\n包装命令不存在时：python3 /root/.dsh/adb-shell.py \"命令\"\n短信只允许当前 Android 用户的 content query --uri content://sms，默认关闭；设置 → 设备能力授权可开启或撤销。\n短信预授权可能返回正文及验证码；不允许发送、修改或删除，Android 仍可拒绝访问。Shizuku 不执行此敏感查询。\n仅执行已识别的单条命令；允许读取各目录和明确路径的普通文件操作。禁止脚本、管道、重定向、未知命令。\n根目录及系统目录只读；禁止块设备/分区、SELinux、系统设置写入、挂载和刷机操作。\n结束进程前自动刷新全量用户/系统应用清单；普通用户应用直接结束，系统应用与关键进程拦截。\n按完整包名调用 am force-stop / killall / pkill -x；kill 正数 PID 会核对 UID 后按包名停止。\n策略拦截返回 [POLICY_BLOCKED]/126；root 和旧确认开关不能放行。不可用其它解释器或 UI 绕过。\n报连不上/未配对：先看上面的 App 层接口能不能办成；确实必须 shell 才请用户到\n设置 → 设备能力授权中连接可用通道，别反复试同一条命令。\n不要用 /root/dsh-bin/adb 或裸 adb —— 那是守卫包装脚本，会失败。\n\n== root（--su）==\n已启用并经 root 管理器授权的 su 可直接执行，无需 ADB 配对；其次使用 Shizuku，再使用 ADB。\n--su 仅在明确需要 root 时使用，须先在设备能力授权页允许；同一设备保护策略始终生效。\n[EXECUTION_UNKNOWN] 表示命令可能已执行，先核对实际状态，不能切换通道或自动重放。\n",
                 BRIDGE_PROTOCOL)
             .replace("3090", Integer.toString(bridgePort))
         + modeHelp
@@ -3270,6 +3279,265 @@ public final class HttpShellService {
     } finally {
       dialog.close();
       questions.release(request);
+    }
+  }
+
+
+  // ---------------------------------------------------------------- 跨应用文件访问（SAF）
+
+  /** /app/saf/trees：跨应用文件访问页里授权的目录；agent 只认这里的 id。 */
+  private String appSafTrees() {
+    try {
+      org.json.JSONArray array = new org.json.JSONArray();
+      for (com.deepseekharness.app.saf.SafGrants.Grant grant :
+          com.deepseekharness.app.saf.SafGrants.list(ctx))
+        array.put(
+            new org.json.JSONObject()
+                .put("id", grant.id)
+                .put("app", grant.app)
+                .put("label", grant.label)
+                .put("writable", grant.writable)
+                .put("valid", grant.valid));
+      return new org.json.JSONObject().put("trees", array).toString();
+    } catch (Throwable error) {
+      return "ERROR: " + safeError(error);
+    }
+  }
+
+  private String appSafList(BridgeRequest request) {
+    try {
+      com.deepseekharness.app.saf.SafTree tree = safTree(request, false);
+      String path = getParam(request.query, "path", "");
+      int limit =
+          safInt(
+              getParam(request.query, "limit", ""),
+              com.deepseekharness.app.saf.SafTree.MAX_ENTRIES);
+      java.util.List<com.deepseekharness.app.saf.SafTree.Entry> entries = tree.list(path, limit);
+      org.json.JSONArray array = new org.json.JSONArray();
+      for (com.deepseekharness.app.saf.SafTree.Entry entry : entries) array.put(safEntry(entry));
+      return new org.json.JSONObject()
+          .put("path", com.deepseekharness.app.saf.SafTree.normalize(path))
+          .put("count", entries.size())
+          .put("truncated", entries.size() >= limit)
+          .put("entries", array)
+          .toString();
+    } catch (com.deepseekharness.app.saf.SafTree.Failure failure) {
+      return "ERROR: " + failure.getMessage();
+    } catch (Throwable error) {
+      return "ERROR: " + safeError(error);
+    }
+  }
+
+  private String appSafStat(BridgeRequest request) {
+    try {
+      com.deepseekharness.app.saf.SafTree tree = safTree(request, false);
+      String path = getParam(request.query, "path", "");
+      return safEntry(tree.stat(path)).put("path", com.deepseekharness.app.saf.SafTree.normalize(path)).toString();
+    } catch (com.deepseekharness.app.saf.SafTree.Failure failure) {
+      return "ERROR: " + failure.getMessage();
+    } catch (Throwable error) {
+      return "ERROR: " + safeError(error);
+    }
+  }
+
+  private String appSafRead(BridgeRequest request) {
+    try {
+      com.deepseekharness.app.saf.SafTree tree = safTree(request, false);
+      String path = getParam(request.query, "path", "");
+      String normalized = com.deepseekharness.app.saf.SafTree.normalize(path);
+      int max =
+          safInt(getParam(request.query, "max", ""), com.deepseekharness.app.saf.SafTree.MAX_READ);
+      long offset = safLong(getParam(request.query, "offset", ""), 0L);
+      byte[] data = tree.read(path, offset, max);
+      if ("1".equals(getParam(request.query, "base64", "")))
+        return new org.json.JSONObject()
+            .put("base64", android.util.Base64.encodeToString(data, android.util.Base64.NO_WRAP))
+            .put("bytes", data.length)
+            .put("path", normalized)
+            .toString();
+      if (!com.deepseekharness.app.saf.SafTree.looksText(data))
+        return new org.json.JSONObject()
+            .put("binary", true)
+            .put("bytes", data.length)
+            .put("path", normalized)
+            .put("hint", "binary: 用 base64=1，或 /app/saf/pull 落成文件")
+            .toString();
+      return new String(data, java.nio.charset.StandardCharsets.UTF_8);
+    } catch (com.deepseekharness.app.saf.SafTree.Failure failure) {
+      return "ERROR: " + failure.getMessage();
+    } catch (Throwable error) {
+      return "ERROR: " + safeError(error);
+    }
+  }
+
+  private String appSafWrite(BridgeRequest request) {
+    try {
+      com.deepseekharness.app.saf.SafTree tree = safTree(request, true);
+      String path = getParam(request.query, "path", "");
+      String text = getParam(request.query, "text", null);
+      if (text == null)
+        return "ERROR: NO_CONTENT (text= 写小文件；大文件用 /app/saf/push?src=)";
+      byte[] data = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+      if (data.length > 64 * 1024)
+        return "ERROR: TOO_LARGE (text 上限 64 KiB；大文件用 /app/saf/push?src=)";
+      boolean create = !"0".equals(getParam(request.query, "create", "1"));
+      long written = tree.write(path, data, create);
+      return new org.json.JSONObject()
+          .put("ok", true)
+          .put("bytes", written)
+          .put("path", com.deepseekharness.app.saf.SafTree.normalize(path))
+          .toString();
+    } catch (com.deepseekharness.app.saf.SafTree.Failure failure) {
+      return "ERROR: " + failure.getMessage();
+    } catch (Throwable error) {
+      return "ERROR: " + safeError(error);
+    }
+  }
+
+  private String appSafMkdir(BridgeRequest request) {
+    try {
+      com.deepseekharness.app.saf.SafTree tree = safTree(request, true);
+      String path = getParam(request.query, "path", "");
+      tree.mkdir(path);
+      return new org.json.JSONObject()
+          .put("ok", true)
+          .put("path", com.deepseekharness.app.saf.SafTree.normalize(path))
+          .toString();
+    } catch (com.deepseekharness.app.saf.SafTree.Failure failure) {
+      return "ERROR: " + failure.getMessage();
+    } catch (Throwable error) {
+      return "ERROR: " + safeError(error);
+    }
+  }
+
+  private String appSafRemove(BridgeRequest request) {
+    try {
+      com.deepseekharness.app.saf.SafTree tree = safTree(request, true);
+      if (!"1".equals(getParam(request.query, "confirm", "")))
+        return "ERROR: NEED_CONFIRM (加 confirm=1 才会删)";
+      String path = getParam(request.query, "path", "");
+      tree.delete(path);
+      return new org.json.JSONObject()
+          .put("ok", true)
+          .put("path", com.deepseekharness.app.saf.SafTree.normalize(path))
+          .toString();
+    } catch (com.deepseekharness.app.saf.SafTree.Failure failure) {
+      return "ERROR: " + failure.getMessage();
+    } catch (Throwable error) {
+      return "ERROR: " + safeError(error);
+    }
+  }
+
+  /** 目标 → 容器文件：大文件读取的正路（不走 base64，不受 query 长度限制）。 */
+  private String appSafPull(BridgeRequest request) {
+    try {
+      com.deepseekharness.app.saf.SafTree tree = safTree(request, false);
+      String path = getParam(request.query, "path", "");
+      java.io.File target = safGuestFile(getParam(request.query, "dest", ""));
+      java.io.File parent = target.getParentFile();
+      if (parent != null && !parent.isDirectory() && !parent.mkdirs())
+        return "ERROR: MKDIR_FAILED " + parent.getPath();
+      long limit = 32L * 1024 * 1024;
+      int chunk = 1024 * 1024;
+      long total = 0;
+      try (java.io.OutputStream output = new java.io.FileOutputStream(target)) {
+        while (total < limit) {
+          byte[] data = tree.read(path, total, (int) Math.min(chunk, limit - total));
+          if (data.length == 0) break;
+          output.write(data);
+          total += data.length;
+          if (data.length < chunk) break;
+        }
+      }
+      return new org.json.JSONObject()
+          .put("ok", true)
+          .put("bytes", total)
+          .put("dest", target.getPath())
+          .toString();
+    } catch (com.deepseekharness.app.saf.SafTree.Failure failure) {
+      return "ERROR: " + failure.getMessage();
+    } catch (Throwable error) {
+      return "ERROR: " + safeError(error);
+    }
+  }
+
+  /** 容器文件 → 目标：改别人数据的主路（≤32 MiB）。 */
+  private String appSafPush(BridgeRequest request) {
+    try {
+      com.deepseekharness.app.saf.SafTree tree = safTree(request, true);
+      String path = getParam(request.query, "path", "");
+      java.io.File source = safGuestFile(getParam(request.query, "src", ""));
+      if (!source.isFile()) return "ERROR: NOT_FOUND " + source.getPath();
+      if (source.length() > com.deepseekharness.app.saf.SafTree.MAX_WRITE)
+        return "ERROR: TOO_LARGE (上限 32 MiB)";
+      byte[] data = java.nio.file.Files.readAllBytes(source.toPath());
+      long written = tree.write(path, data, true);
+      return new org.json.JSONObject()
+          .put("ok", true)
+          .put("bytes", written)
+          .put("path", com.deepseekharness.app.saf.SafTree.normalize(path))
+          .toString();
+    } catch (com.deepseekharness.app.saf.SafTree.Failure failure) {
+      return "ERROR: " + failure.getMessage();
+    } catch (Throwable error) {
+      return "ERROR: " + safeError(error);
+    }
+  }
+
+  /** 解析 tree=id：只认授权簿里的短 id，绝不接受调用方直接给 authority / URI。 */
+  private com.deepseekharness.app.saf.SafTree safTree(BridgeRequest request, boolean writable)
+      throws com.deepseekharness.app.saf.SafTree.Failure {
+    String id = getParam(request.query, "tree", "");
+    com.deepseekharness.app.saf.SafGrants.Grant grant =
+        com.deepseekharness.app.saf.SafGrants.pick(ctx, id);
+    if (grant == null) throw new com.deepseekharness.app.saf.SafTree.Failure("NO_GRANT", id);
+    if (!grant.valid)
+      throw new com.deepseekharness.app.saf.SafTree.Failure("PERMISSION_DENIED", id);
+    if (writable && !grant.writable)
+      throw new com.deepseekharness.app.saf.SafTree.Failure("READ_ONLY", id);
+    return new com.deepseekharness.app.saf.SafTree(ctx.getContentResolver(), grant.uri);
+  }
+
+  /** guest 路径（/root/x）→ 容器内真实文件；只接受 rootfs 内的普通路径，凭据区一律拒绝。 */
+  private java.io.File safGuestFile(String raw) throws java.io.IOException {
+    if (raw == null || raw.trim().isEmpty()) throw new java.io.IOException("NO_PATH");
+    String value = raw.trim();
+    if (!value.startsWith("/")) throw new java.io.IOException("ABSOLUTE_ONLY");
+    if (com.deepseekharness.app.util.BridgePathPolicy.denied(value))
+      throw new java.io.IOException("FORBIDDEN");
+    java.io.File rootfs = HarnessController.get(ctx).getProot().getRootfsDir().getCanonicalFile();
+    String root = rootfs.getCanonicalPath();
+    java.io.File file = new java.io.File(rootfs, value.substring(1)).getCanonicalFile();
+    if (!file.getPath().equals(root) && !file.getPath().startsWith(root + java.io.File.separator))
+      throw new java.io.IOException("FORBIDDEN");
+    if (com.deepseekharness.app.util.BridgePathPolicy.deniedGuestView(file.getPath(), root))
+      throw new java.io.IOException("FORBIDDEN");
+    return file;
+  }
+
+  private static org.json.JSONObject safEntry(com.deepseekharness.app.saf.SafTree.Entry entry)
+      throws org.json.JSONException {
+    return new org.json.JSONObject()
+        .put("name", entry.name)
+        .put("dir", entry.directory)
+        .put("mime", entry.mime)
+        .put("size", entry.size)
+        .put("mtime", entry.modified);
+  }
+
+  private static int safInt(String raw, int fallback) {
+    try {
+      return Integer.parseInt(raw.trim());
+    } catch (Throwable ignored) {
+      return fallback;
+    }
+  }
+
+  private static long safLong(String raw, long fallback) {
+    try {
+      return Long.parseLong(raw.trim());
+    } catch (Throwable ignored) {
+      return fallback;
     }
   }
 

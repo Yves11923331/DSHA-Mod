@@ -1,4 +1,6 @@
-# DSHA 0.2.1-rc.5-20261104.2030-dsh0.2.1-rc.5 / build310
+# DSHA dsha.v2 / build311
 
-- Experimental: keeps the environment guard and records a diagnostic when a background process exit cannot be confirmed; the backup configuration-snapshot catalog is read-only; bridge APK install sources follow the read endpoint's domain rules (fixes picked from collaborator ym2025szz).
-- Verification scope: local targeted unit tests, Lint and source gates only; not checked on a device. Raises versionCode to 310 (based on build309). The DSHA revision remains 0.2.1-rc.5 and bundled DSH remains 0.2.1-rc.5.
+- Settings · Device grants gains "Cross-app files": grant folder by folder through the system document picker, toggle assistant writes per folder, and revoke a grant at any time.
+- New `/app/saf/*` bridge endpoints: list folders, read files (text, base64, ranged), write small text, pull a file into the container, push a container file back, create folders and confirm-delete. Only folder ids from the grant list are accepted.
+- Rebased onto upstream build310 (switchable release identity, island notification fixes, backup and bridge install-source boundary fixes) while keeping the landscape Dock, keep-screen-on and winter icon mods.
+- Verification scope: local offline compile and source checks pass; device checks for grant, read/write and revoke happen after the cloud build. versionCode 311 (based on build310), versionName dsha.v2, package dsga.mod.
