@@ -133,8 +133,8 @@ public final class UpdateVersionPageTest {
       assertCurrentNotesShown(activity, shown);
       for (String language : UiLanguagePreference.LANGUAGES)
         bundledNotes(inLanguage(activity, language));
-      assertTrue(shown.contains("共存版首个构建"));
-      assertTrue(shown.contains("版本码 308"));
+      assertTrue(shown.contains(currentHeadline(activity)));
+      assertTrue(shown.contains("版本码 " + BuildConfig.VERSION_CODE));
       assertFalse(shown.contains("竖屏底部导航"));
       assertFalse(shown.contains("版本码提升为 306"));
       assertFalse(shown.contains("主 tab"));
@@ -274,8 +274,8 @@ public final class UpdateVersionPageTest {
           "English notes must resolve a localized body rather than the default Chinese resource",
           body(bundledNotes(inLanguage(controller.get(), "zh"))),
           englishBody);
-      assertTrue(shown.contains("First DSHA coexisting build"));
-      assertTrue(shown.contains("version code 308"));
+      assertTrue(shown.contains(currentHeadline(controller.get())));
+      assertTrue(shown.contains("version code " + BuildConfig.VERSION_CODE));
       assertFalse(shown.contains("phone-portrait bottom navigation"));
       assertFalse(shown.contains("Raises versionCode to 306"));
       assertFalse(shown.contains("main tabs"));
@@ -620,6 +620,25 @@ public final class UpdateVersionPageTest {
     constructor.setAccessible(true);
     return constructor.newInstance(
         message, stage, downloaded, total, release, null, "preview", null);
+  }
+
+  /**
+   * 当前版本 changelog 的第一条正文首句。
+   *
+   * <p>用来断言「更新页展示的是本期内容」而不是往期：直接取本期资源自身的第一条，
+   * 而不是在这里写死某句话 —— 写死的话，每升一次版本这个测试就要跟着改。
+   */
+  private static String currentHeadline(Context context) throws IOException {
+    for (String line : body(bundledNotes(context)).split("\n")) {
+      String trimmed = line.trim();
+      if (trimmed.startsWith("- ")) {
+        String headline = trimmed.substring(2).trim();
+        int cut = headline.indexOf('：');
+        if (cut < 0) cut = headline.indexOf(':');
+        return cut > 0 ? headline.substring(0, cut) : headline;
+      }
+    }
+    throw new AssertionError("The current bundled notes must contain at least one bullet");
   }
 
   private static String assertCurrentNotesShown(Context context, String shown) throws IOException {
