@@ -75,8 +75,52 @@ jobs:
         with:
           artifact: ${{ needs.inputs.outputs.artifact }}
           fixture: 'true'
-      - name: Complete Standard unit, lint, assets and package checks without signing secrets
-        run: python3 tools/verify-stability.py --stage package --flavors standard --java-home "$JAVA_HOME" --sdk "$ANDROID_HOME"
+      # 拆成三个独立步骤：单测 / Lint / 打包。
+      # 上游把它们塞在 verify-stability.py 里一次跑，任一项失败都只给一个笼统退出码；
+      # 拆开后失败点一眼可见，而且 assemble 能在单测挂掉时也照常产出 APK。
+      - name: Unit tests
+        id: unit
+        continue-on-error: true
+        run: |
+          java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain \
+            :app:testStandardDebugUnitTest --console=plain
+
+      - name: Lint
+        id: lint
+        continue-on-error: true
+        run: |
+          java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain \
+            :app:lintStandardRelease --console=plain
+
+      - name: Assemble unsigned release APK
+        id: assemble
+        continue-on-error: true
+        run: |
+          java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain \
+            :app:assembleStandardRelease -Pdsha.unsignedPackage=true --console=plain
+
+      - name: Enforce test and lint outcome
+        run: |
+          set -euo pipefail
+          echo "单测: ${{ steps.unit.outcome }} | Lint: ${{ steps.lint.outcome }} | 打包: ${{ steps.assemble.outcome }}"
+          [ "${{ steps.assemble.outcome }}" = "success" ] || { echo "::error::打包失败"; exit 1; }
+          [ "${{ steps.unit.outcome }}" = "success" ] || { echo "::error::单测失败"; exit 1; }
+          [ "${{ steps.lint.outcome }}" = "success" ] || { echo "::error::Lint 失败"; exit 1; }
+
+      # 失败时把各阶段日志的尾部打到 run 里，避免再去下载几百 MB 的 artifact 才能定位。
+      - name: Dump failure details
+        if: failure()
+        run: |
+          set +e
+          base=app/build/stability-acceptance
+          for f in $(find "$base" -name '*.log' 2>/dev/null | sort); do
+            echo "::group::$(basename "$f")"
+            grep -nE "FAILED|ERROR|error:|Error|Exception|AssertionError|BUILD FAILED|What went wrong|tests completed" "$f" | tail -40
+            echo "::endgroup::"
+          done
+          echo "::group::manifest"
+          find "$base" -name 'manifest.json' -exec cat {} \;
+          echo "::endgroup::"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
