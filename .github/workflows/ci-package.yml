@@ -115,21 +115,21 @@ jobs:
             --v1-signing-enabled false \
             --v2-signing-enabled true \
             --v3-signing-enabled true \
-            --out "$out/DSHA-dsha.v2-coexist.apk" \
+            --out "$out/DSHA-coexist.apk" \
             "$out/aligned.apk"
-          "$BT/apksigner" verify --print-certs "$out/DSHA-dsha.v2-coexist.apk" | head -6
+          "$BT/apksigner" verify --print-certs "$out/DSHA-coexist.apk" | head -6
           rm -f "$RUNNER_TEMP/sign.jks"
 
       - name: Verify package identity
         run: |
           set -euo pipefail
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          APK="$RUNNER_TEMP/signed/DSHA-dsha.v2-coexist.apk"
+          APK="$RUNNER_TEMP/signed/DSHA-coexist.apk"
           "$BT/aapt2" dump badging "$APK" | head -3
           pkg=$("$BT/aapt2" dump badging "$APK" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
           [ "$pkg" = "dsga.mod" ] || { echo "::error::包名不是 dsga.mod，实际 $pkg"; exit 1; }
           {
-            echo "### DSHA 共存版 dsha.v2"
+            echo "### DSHA 共存版"
             echo "- 包名：\`dsga.mod\`"
             echo "- 大小：$(stat -c%s "$APK") 字节"
             echo "- SHA-256：\`$(sha256sum "$APK" | cut -d\  -f1)\`"
@@ -137,7 +137,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: DSHA-dsha.v2-coexist
-          path: ${{ runner.temp }}/signed/DSHA-dsha.v2-coexist.apk
+          name: DSHA-coexist
+          path: ${{ runner.temp }}/signed/DSHA-coexist.apk
           if-no-files-found: error
           retention-days: 30
