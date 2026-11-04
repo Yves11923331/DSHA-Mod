@@ -141,7 +141,10 @@
     "web-integration/session-interaction.js",
     "welcome-notice-patch.json",
     "workspace-directory-policy-patch.json",
-    "external-tool-proof.json"
+    "external-tool-proof.json",
+    "web/scroll-guard.js",
+    "web/scroll-lock.js",
+    "web/scroll-watcher.js"
   ],
   "packagedTrees": [
     "app-integration",

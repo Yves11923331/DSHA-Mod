@@ -1,4 +1,7 @@
-# DSHA 0.2.1-rc.3-20261104.0130-dsh0.2.1-rc.5 / build307
+# DSHA dsha.v1 / build308
 
-- Experimentale: partes «Canalis exsecutionis» et «Operationes veli» in pagina facultatum instrumenti nunc sunt ordines compacti duarum linearum; ratio permissionum et commutatorum non mutatur.
-- Ambitus probationis: solum probationes unitatum destinatae, Lint et inspectiones fontis locales; in instrumento non probatum. versionCode ad 307 auctus (in build306 fundatum). Revisio DSHA manet 0.2.1-rc.3 et DSH inclusum manet 0.2.1-rc.5.
+- Prima editio DSHA communis: ex upstream build307, fasciculus `dsga.mod`, omnino seiunctus ab originali `dsh.android.client`; utraque una installari potest, datis non communibus.
+- Dock transversum: scaena virtutis 16:9 cum formis 1280/1024/854, taeniis systematis celatis, incisura servata.
+- Semper accensa tabula: novum fibulatorium supra chartam energiae in pagina configurationis, primum clausum, per omnes fenestras valens.
+- Insigne launcheris totum apparatum hiemalem Pro substituit (5 densitates x 5 nomina, primum et secundum planum adaptiva, color `#798AA3`).
+- Nomen monstratum DSHA, nomen versionis `dsha.v1`, numerus versionis 308.
