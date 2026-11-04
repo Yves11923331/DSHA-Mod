@@ -133,8 +133,8 @@ public final class UpdateVersionPageTest {
       assertCurrentNotesShown(activity, shown);
       for (String language : UiLanguagePreference.LANGUAGES)
         bundledNotes(inLanguage(activity, language));
-      assertTrue(shown.contains("紧凑两行条目"));
-      assertTrue(shown.contains("版本码提升为 307"));
+      assertTrue(shown.contains("共存版首个构建"));
+      assertTrue(shown.contains("版本码 308"));
       assertFalse(shown.contains("竖屏底部导航"));
       assertFalse(shown.contains("版本码提升为 306"));
       assertFalse(shown.contains("主 tab"));
@@ -274,8 +274,8 @@ public final class UpdateVersionPageTest {
           "English notes must resolve a localized body rather than the default Chinese resource",
           body(bundledNotes(inLanguage(controller.get(), "zh"))),
           englishBody);
-      assertTrue(shown.contains("compact two-line rows"));
-      assertTrue(shown.contains("Raises versionCode to 307"));
+      assertTrue(shown.contains("first DSHA coexisting build"));
+      assertTrue(shown.contains("version code 308"));
       assertFalse(shown.contains("phone-portrait bottom navigation"));
       assertFalse(shown.contains("Raises versionCode to 306"));
       assertFalse(shown.contains("main tabs"));
